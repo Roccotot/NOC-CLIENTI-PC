@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestione Utenti — SigraFilm NOC</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') }}">
+        <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
+        <span class="nav-user-chip">{{ session.get("username") }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap py-2 py-lg-0">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">🎫 Ticket aperti</a>
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          {% endif %}
+          <a href="{{ url_for('export_excel') }}?foglio=utenti" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('import_excel') }}" class="btn btn-outline-warning btn-sm">📤 Importa</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
+            onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+
+    <h2 class="page-heading">Gestione Utenti</h2>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }} py-2">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Form aggiungi utente -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="card-title">Aggiungi utente</div>
+        <form method="post" action="{{ url_for('admin_users') }}">
+          <div class="row g-2 mb-2">
+            <div class="col-12 col-md-3">
+              <input type="text" name="username" class="form-control noc-field" placeholder="Username" required autocomplete="off">
+            </div>
+            <div class="col-12 col-md-3">
+              <input type="password" name="password" class="form-control noc-field" placeholder="Password (min 8 caratteri)" required>
+            </div>
+            <div class="col-6 col-md-2">
+              <input type="tel" name="telefono" class="form-control noc-field" placeholder="Telefono">
+            </div>
+            <div class="col-6 col-md-2">
+              <input type="email" name="email" class="form-control noc-field" placeholder="Email">
+            </div>
+            <div class="col-8 col-md-1">
+              <select name="role" class="form-select noc-field">
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="col-4 col-md-1">
+              <button type="submit" class="btn btn-primary noc-field w-100">+</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tabella utenti -->
+    <div class="card shadow-sm" style="overflow:hidden;">
+      <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
+        <div class="card-title" style="margin:0;">Utenti registrati</div>
+      </div>
+
+      {% if users %}
+        <div class="table-responsive" style="border:none; border-radius:0;">
+          <table class="table table-striped table-hover" style="margin:0;">
+            <thead class="table-dark">
+              <tr>
+                <th class="d-none d-md-table-cell">ID</th>
+                <th>Username</th>
+                <th class="d-none d-md-table-cell">Password</th>
+                <th class="d-none d-lg-table-cell">Telefono</th>
+                <th class="d-none d-lg-table-cell">Email</th>
+                <th>Ruolo</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in users %}
+              <tr>
+                <td class="d-none d-md-table-cell" style="color:var(--text-3); font-size:.78rem; font-weight:500;">#{{ u.id }}</td>
+                <td style="font-weight:500; color:#fff;">
+                  {{ u.username }}
+                  <!-- Info aggiuntive visibili solo su mobile -->
+                  <div class="d-lg-none" style="font-size:.72rem; color:var(--text-3); font-weight:400; margin-top:.15rem;">
+                    {% if u.telefono %}{{ u.telefono }}{% endif %}
+                    {% if u.telefono and u.email %} · {% endif %}
+                    {% if u.email %}{{ u.email }}{% endif %}
+                  </div>
+                </td>
+                <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem; font-family:monospace;">{{ u.password_plain or '—' }}</td>
+                <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
+                <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
+                <td>
+                  {% if u.role == 'admin' %}
+                    <span class="nbadge nbadge-admin">Admin</span>
+                  {% else %}
+                    <span class="nbadge nbadge-user">User</span>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">
+                  {% if u.role != 'admin' %}
+                    <a href="{{ url_for('user_detail', user_id=u.id) }}"
+                      class="btn btn-sm btn-info me-1" title="Assegna cinema">🎬</a>
+                  {% endif %}
+                  <!-- Reset password: visibile solo su desktop -->
+                  <form method="post"
+                    action="{{ url_for('reset_password', user_id=u.id) }}"
+                    class="d-none d-md-inline">
+                    <input type="password" name="new_password"
+                      placeholder="Nuova password" minlength="8" required
+                      class="form-control d-inline" style="width:130px; vertical-align:middle; margin-right:.35rem;">
+                    <button type="submit" class="btn btn-sm btn-warning">↺</button>
+                  </form>
+                  <form method="post"
+                    action="{{ url_for('delete_user', user_id=u.id) }}"
+                    class="d-inline" style="margin-left:.25rem;">
+                    <button type="submit" class="btn btn-sm btn-danger"
+                      onclick="return confirm('Eliminare questo utente?')">✕</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="d-md-none" style="padding:.6rem 1rem; font-size:.75rem; color:var(--text-3); border-top:1px solid var(--border);">
+          Per il reset password apri il dettaglio utente con 🎬
+        </div>
+      {% else %}
+        <div class="alert alert-info" style="margin:1rem; margin-bottom:1rem;">
+          Nessun utente registrato.
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

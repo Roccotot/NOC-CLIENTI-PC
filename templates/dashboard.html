@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard — SigraFilm NOC</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/sorttable@1.0.2/sorttable.min.js"></script>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="https://sigrafilm.com/" target="_blank">
+        <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
+        <span class="nav-user-chip">{{ session.get("username") }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap py-2 py-lg-0">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">🎫 Ticket aperti</a>
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          {% endif %}
+          <a href="{{ url_for('export_excel') }}?foglio=aperti" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('import_excel') }}" class="btn btn-outline-warning btn-sm">📤 Importa</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
+            onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }} py-2">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Dati cinema per JS città→cinema→sala -->
+    <script>
+      const allCinemas = [
+        {% for c in cinemas %}
+        { id: {{ c.id }}, nome: {{ c.nome|tojson }}, città: {{ c.città|tojson }}, numSale: {{ c.num_sale }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ];
+
+      function updateCinema() {
+        const città = document.getElementById("città-sel").value;
+        const cinSel = document.getElementById("cinema-sel");
+        cinSel.innerHTML = '<option value="" data-cid="">— Seleziona —</option>';
+        allCinemas
+          .filter(c => !città || c.città === città)
+          .forEach(c => {
+            const o = document.createElement("option");
+            o.value = c.nome; o.dataset.cid = c.id; o.text = c.nome;
+            cinSel.appendChild(o);
+          });
+        cinSel.disabled = !città;
+        updateSale();
+      }
+
+      function updateSale() {
+        const cinSel = document.getElementById("cinema-sel");
+        const opt = cinSel.options[cinSel.selectedIndex];
+        const cid = parseInt(opt && opt.dataset.cid);
+        const salaSel = document.getElementById("sala-sel");
+        const prev = salaSel.value;
+        salaSel.innerHTML = "";
+        const cinema = allCinemas.find(c => c.id === cid);
+        const n = cinema ? cinema.numSale : 0;
+        for (let i = 1; i <= n; i++) {
+          const o = document.createElement("option");
+          o.value = i; o.text = "Sala " + i;
+          if (String(i) === prev) o.selected = true;
+          salaSel.appendChild(o);
+        }
+        salaSel.disabled = n === 0;
+      }
+
+      {% if single_cinema %}
+      // Utente con un solo cinema assegnato: pre-compila il form automaticamente
+      document.addEventListener("DOMContentLoaded", function() {
+        const sc = allCinemas[0];
+        if (!sc) return;
+        const cittaSel = document.getElementById("città-sel");
+        cittaSel.value = sc.città;
+        updateCinema();
+        const cinSel = document.getElementById("cinema-sel");
+        for (let i = 0; i < cinSel.options.length; i++) {
+          if (cinSel.options[i].value === sc.nome) {
+            cinSel.selectedIndex = i;
+            break;
+          }
+        }
+        cinSel.disabled = false;
+        updateSale();
+      });
+      {% endif %}
+    </script>
+
+    <!-- Form segnalazione problema -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="card-title">Segnala problema</div>
+        {% if cinemas %}
+        <form method="post" action="{{ url_for('add_problem') }}">
+          <div class="row g-2 align-items-end">
+            <div class="col-6 col-md">
+              <label class="form-label mb-1">Città</label>
+              <select id="città-sel" class="form-select noc-field" onchange="updateCinema()">
+                <option value="">— Città —</option>
+                {% set cities = cinemas | map(attribute='città') | unique | sort %}
+                {% for city in cities %}
+                  <option value="{{ city }}">{{ city }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-md">
+              <label class="form-label mb-1">Cinema</label>
+              <select name="cinema" id="cinema-sel" class="form-select noc-field" required onchange="updateSale()" disabled>
+                <option value="" data-cid="">— Cinema —</option>
+              </select>
+            </div>
+            <div class="col-4 col-md-1">
+              <label class="form-label mb-1">Sala</label>
+              <select name="sala" id="sala-sel" class="form-select noc-field" disabled>
+                <option value="">—</option>
+              </select>
+            </div>
+            <div class="col-8 col-md">
+              <label class="form-label mb-1">Urgenza</label>
+              <select name="urgenza" class="form-select noc-field">
+                <option value="Non urgente">Non urgente</option>
+                <option value="Urgente">Urgente</option>
+                <option value="Critico">Critico</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label mb-1">Descrizione</label>
+              <input type="text" name="tipo" class="form-control noc-field" placeholder="Descrivi il problema…" required>
+            </div>
+            <div class="col-12 col-md-auto">
+              <button type="submit" class="btn btn-primary noc-field w-100" style="min-width:9rem;">+ Aggiungi</button>
+            </div>
+          </div>
+        </form>
+        {% else %}
+          <div class="alert alert-warning py-2 mb-0" style="font-size:.78rem;">
+            Nessun cinema. <a href="{{ url_for('admin_cinemas') }}">Aggiungili qui</a>.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <div class="stat-chip stat-chip-total">{{ stats.total }} Totale</div>
+      <div class="stat-chip stat-chip-aperto">{{ stats.aperto }} Aperti</div>
+      <div class="stat-chip stat-chip-in-corso">{{ stats.in_corso }} In corso</div>
+      <div class="stat-chip stat-chip-chiuso">{{ stats.chiuso }} Chiusi</div>
+      {% if stats.critico > 0 %}
+        <div class="stat-chip stat-chip-critico">⚠ {{ stats.critico }} Critici</div>
+      {% endif %}
+    </div>
+
+    <!-- Heading + Filtri -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h2 class="page-heading mb-0">Problemi
+        {% if filter_urgenza or filter_stato %}
+          <small>(filtrati)</small>
+        {% endif %}
+      </h2>
+      <div class="filter-bar">
+        <!-- Filtro stato -->
+        <a href="?filter_stato=&filter_urgenza={{ filter_urgenza }}"
+          class="filter-pill filter-pill-all {% if not filter_stato %}active{% endif %}">Tutti</a>
+        <a href="?filter_stato=Aperto&filter_urgenza={{ filter_urgenza }}"
+          class="filter-pill filter-pill-aperto {% if filter_stato == 'Aperto' %}active{% endif %}">Aperto</a>
+        <a href="?filter_stato=In+corso&filter_urgenza={{ filter_urgenza }}"
+          class="filter-pill filter-pill-in-corso {% if filter_stato == 'In corso' %}active{% endif %}">In corso</a>
+        <span class="filter-divider">·</span>
+
+        <!-- Filtro urgenza -->
+        <a href="?filter_urgenza=&filter_stato={{ filter_stato }}"
+          class="filter-pill {% if not filter_urgenza %}active{% endif %}">Tutte</a>
+        <a href="?filter_urgenza=Critico&filter_stato={{ filter_stato }}"
+          class="filter-pill filter-pill-critico {% if filter_urgenza == 'Critico' %}active{% endif %}">Critico</a>
+        <a href="?filter_urgenza=Urgente&filter_stato={{ filter_stato }}"
+          class="filter-pill filter-pill-urgente {% if filter_urgenza == 'Urgente' %}active{% endif %}">Urgente</a>
+        <a href="?filter_urgenza=Non+urgente&filter_stato={{ filter_stato }}"
+          class="filter-pill filter-pill-non-urgente {% if filter_urgenza == 'Non urgente' %}active{% endif %}">Non urgente</a>
+
+        {% if filter_urgenza or filter_stato %}
+          <a href="?" class="filter-pill" style="color:var(--red); border-color:rgba(248,81,73,.3);">✕ Reset</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Tabella problemi -->
+    {% if problems %}
+      <div class="table-responsive">
+        <table class="table table-striped table-hover sortable">
+          <thead class="table-dark">
+            <tr>
+              <th class="d-none d-md-table-cell">ID</th>
+              <th class="d-none d-md-table-cell">Città</th>
+              <th>Cinema</th>
+              <th>Sala</th>
+              <th class="d-none d-lg-table-cell">Descrizione</th>
+              <th>Urgenza</th>
+              <th>Stato</th>
+              <th>Chat</th>
+              <th class="d-none d-md-table-cell">Autore</th>
+              <th class="d-none d-md-table-cell">Data/Ora</th>
+              <th class="sorttable_nosort" style="cursor:default;">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in problems %}
+            <tr class="{% if p.urgenza == 'Critico' %}row-critico{% elif p.urgenza == 'Urgente' %}row-urgente{% else %}row-non-urgente{% endif %}"
+              style="cursor:pointer;"
+              onclick="window.location='{{ url_for('ticket_detail', problem_id=p.id) }}'">
+              <td class="d-none d-md-table-cell">
+                <span style="color:var(--text-3); font-size:.78rem; font-weight:600;">#{{ p.id }}</span>
+              </td>
+              <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ p.città }}</td>
+              <td style="font-weight:600;">
+                {{ p.cinema }}
+                <div class="d-md-none" style="font-size:.72rem; color:var(--text-3); font-weight:400; margin-top:.15rem;">
+                  {{ p.città }} · #{{ p.id }}
+                </div>
+              </td>
+              <td style="font-size:.82rem; font-weight:600; color:var(--text-2);">S.{{ p.sala }}</td>
+              <td class="d-none d-lg-table-cell" style="max-width:220px; white-space:normal; color:var(--text-2);">{{ p.tipo }}</td>
+              <td>
+                {% if p.urgenza == 'Critico' %}
+                  <span class="nbadge nbadge-critico">Critico</span>
+                {% elif p.urgenza == 'Urgente' %}
+                  <span class="nbadge nbadge-urgente">Urgente</span>
+                {% else %}
+                  <span class="nbadge nbadge-non-urgente d-none d-sm-inline-flex">Non urgente</span>
+                  <span class="nbadge nbadge-non-urgente d-sm-none">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if p.stato == 'Aperto' %}
+                  <span class="nbadge nbadge-aperto">Aperto</span>
+                {% elif p.stato == 'In corso' %}
+                  <span class="nbadge nbadge-in-corso">In corso</span>
+                {% else %}
+                  <span class="nbadge nbadge-chiuso">Chiuso</span>
+                {% endif %}
+              </td>
+              <td onclick="event.stopPropagation()">
+                {% set ci = chat_info[p.id] %}
+                {% if ci.unread > 0 %}
+                  <a href="{{ url_for('ticket_detail', problem_id=p.id) }}"
+                    class="chat-counter chat-counter-unread" title="{{ ci.unread }} messaggi non letti">
+                    💬 {{ ci.total }}
+                    <span class="chat-unread-dot">{{ ci.unread }}</span>
+                  </a>
+                {% elif ci.total > 0 %}
+                  <a href="{{ url_for('ticket_detail', problem_id=p.id) }}"
+                    class="chat-counter" title="{{ ci.total }} messaggi">
+                    💬 {{ ci.total }}
+                  </a>
+                {% else %}
+                  <span class="chat-counter chat-counter-empty">—</span>
+                {% endif %}
+              </td>
+              <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ p.autore }}</td>
+              <td class="d-none d-md-table-cell" style="color:var(--text-3); font-size:.78rem; white-space:nowrap;">
+                {{ p.data_ora.strftime("%d/%m/%Y %H:%M") }}
+              </td>
+              <td class="text-nowrap" onclick="event.stopPropagation()">
+                {% if session.get("role") == "admin" or session.get("username") == p.autore %}
+                  <a href="{{ url_for('edit_problem', problem_id=p.id) }}"
+                    class="btn btn-sm btn-warning me-1 d-none d-md-inline-flex">✏</a>
+                  <form method="post"
+                    action="{{ url_for('delete_problem', problem_id=p.id) }}"
+                    class="d-inline d-none d-md-inline">
+                    <button type="submit" class="btn btn-sm btn-secondary"
+                      onclick="return confirm('Archiviare questo ticket?')">🗄</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">✓</div>
+        <div class="empty-state-title">Nessun problema trovato</div>
+        <div class="empty-state-sub">
+          {% if filter_urgenza or filter_stato %}
+            Prova a modificare i filtri — <a href="?">Reset filtri</a>
+          {% else %}
+            Tutto regolare, nessuna segnalazione aperta.
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

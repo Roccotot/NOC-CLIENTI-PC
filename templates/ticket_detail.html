@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket #{{ problem.id }} — SigraFilm NOC</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') }}">
+        <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
+        <span class="nav-user-chip">{{ session.get("username") }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap py-2 py-lg-0">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">🎫 Ticket aperti</a>
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          {% endif %}
+          <a href="{{ url_for('export_excel') }}?foglio=tutto" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('import_excel') }}" class="btn btn-outline-warning btn-sm">📤 Importa</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
+            onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, msg in messages %}
+        <div class="alert alert-{{ category }} py-2">{{ msg }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <!-- Header ticket -->
+    <div class="ticket-header mb-3">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="ticket-id">#{{ problem.id }}</span>
+        {% if problem.urgenza == 'Critico' %}
+          <span class="nbadge nbadge-critico">Critico</span>
+        {% elif problem.urgenza == 'Urgente' %}
+          <span class="nbadge nbadge-urgente">Urgente</span>
+        {% else %}
+          <span class="nbadge nbadge-non-urgente">Non urgente</span>
+        {% endif %}
+        {% if problem.stato == 'Aperto' %}
+          <span class="nbadge nbadge-aperto">Aperto</span>
+        {% elif problem.stato == 'In corso' %}
+          <span class="nbadge nbadge-in-corso">In corso</span>
+        {% else %}
+          <span class="nbadge nbadge-chiuso">Chiuso</span>
+        {% endif %}
+        <span class="ticket-cinema">{{ problem.cinema }}</span>
+      </div>
+      <p class="ticket-desc mt-2 mb-0">{{ problem.tipo }}</p>
+      <div class="ticket-meta mt-1">
+        <strong>{{ problem.città }}</strong> · Sala {{ problem.sala }} ·
+        Aperto da <strong>{{ problem.autore }}</strong> il {{ problem.data_ora.strftime("%d/%m/%Y alle %H:%M") }}
+      </div>
+    </div>
+
+    <div class="row g-3">
+
+      <!-- Colonna sinistra: Chat (su mobile appare DOPO le azioni) -->
+      <div class="col-12 col-md-8 order-2 order-md-1">
+        <div class="card shadow-sm h-100 d-flex flex-column">
+          <div class="card-body d-flex flex-column" style="padding:0;">
+            <div class="chat-title">Conversazione</div>
+
+            <!-- Messaggi -->
+            <div class="chat-messages" id="chat-scroll">
+              {% if not comments %}
+                <div class="chat-empty">Nessun messaggio — scrivi il primo!</div>
+              {% endif %}
+              {% for c in comments %}
+                <div class="chat-msg {% if c.role == 'admin' %}chat-msg-admin{% else %}chat-msg-user{% endif %}">
+                  <div class="chat-bubble">
+                    <div class="chat-bubble-text">{{ c.testo }}</div>
+                  </div>
+                  <div class="chat-meta">
+                    <span class="chat-author">{{ c.autore }}
+                      {% if c.role == 'admin' %}<span class="nbadge nbadge-admin" style="font-size:.55rem; padding:.1rem .35rem;">admin</span>{% endif %}
+                    </span>
+                    <span class="chat-time">{{ c.data_ora.strftime("%d/%m %H:%M") }}</span>
+                  </div>
+                </div>
+              {% endfor %}
+              <div id="chat-bottom"></div>
+            </div>
+
+            <!-- Input messaggio -->
+            {% if problem.stato != 'Chiuso' %}
+              <form method="post" action="{{ url_for('add_comment', problem_id=problem.id) }}"
+                class="chat-input-area">
+                <textarea name="testo" class="form-control chat-input"
+                  placeholder="Scrivi un messaggio…" rows="2" required></textarea>
+                <button type="submit" class="btn btn-primary chat-send-btn">Invia</button>
+              </form>
+            {% else %}
+              <div class="chat-closed-notice">Ticket chiuso — i messaggi sono disabilitati.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Colonna destra: Azioni (su mobile appare PRIMA della chat) -->
+      <div class="col-12 col-md-4 order-1 order-md-2">
+
+        <!-- Dettagli -->
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <div class="card-title">Dettagli</div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Città</span>
+              <span>{{ problem.città }}</span>
+            </div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Cinema</span>
+              <span>{{ problem.cinema }}</span>
+            </div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Sala</span>
+              <span>Sala {{ problem.sala }}</span>
+            </div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Autore</span>
+              <span>{{ problem.autore }}</span>
+            </div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Aperto il</span>
+              <span>{{ problem.data_ora.strftime("%d/%m/%Y") }}</span>
+            </div>
+            <div class="ticket-detail-row">
+              <span class="ticket-detail-label">Messaggi</span>
+              <span>{{ comments|length }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Azioni (admin o autore, solo se non chiuso) -->
+        {% if (session.get("role") == "admin" or session.get("username") == problem.autore) and problem.stato != "Chiuso" %}
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <div class="card-title">Modifica ticket</div>
+              <form method="post" action="{{ url_for('update_ticket', problem_id=problem.id) }}">
+                <div class="mb-2">
+                  <label class="form-label">Stato</label>
+                  <select name="stato" class="form-select form-select-sm">
+                    <option value="Aperto"   {% if problem.stato == 'Aperto'   %}selected{% endif %}>Aperto</option>
+                    <option value="In corso" {% if problem.stato == 'In corso' %}selected{% endif %}>In corso</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Urgenza</label>
+                  <select name="urgenza" class="form-select form-select-sm">
+                    <option value="Non urgente" {% if problem.urgenza == 'Non urgente' %}selected{% endif %}>Non urgente</option>
+                    <option value="Urgente"     {% if problem.urgenza == 'Urgente'     %}selected{% endif %}>Urgente</option>
+                    <option value="Critico"     {% if problem.urgenza == 'Critico'     %}selected{% endif %}>Critico</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-success w-100 btn-sm mb-2">Salva modifiche</button>
+              </form>
+
+              <!-- Chiudi ticket -->
+              <form method="post" action="{{ url_for('update_ticket', problem_id=problem.id) }}"
+                onsubmit="return confirm('Chiudere questo ticket? Verrà spostato nell\'archivio.')">
+                <input type="hidden" name="stato" value="Chiuso">
+                <input type="hidden" name="urgenza" value="{{ problem.urgenza }}">
+                <button type="submit" class="btn btn-secondary w-100 btn-sm">🔒 Chiudi ticket</button>
+              </form>
+            </div>
+          </div>
+        {% elif problem.stato == "Chiuso" %}
+          <div class="card shadow-sm mb-3">
+            <div class="card-body">
+              <div class="card-title">Ticket chiuso</div>
+              <p style="font-size:.8rem; color:var(--text-3);">
+                Questo ticket è archiviato. Solo un admin può eliminarlo definitivamente.
+              </p>
+              {% if session.get("role") == "admin" %}
+                <!-- Riapri -->
+                <form method="post" action="{{ url_for('update_ticket', problem_id=problem.id) }}" class="mb-2">
+                  <input type="hidden" name="stato" value="Aperto">
+                  <input type="hidden" name="urgenza" value="{{ problem.urgenza }}">
+                  <button type="submit" class="btn btn-warning w-100 btn-sm">↩ Riapri ticket</button>
+                </form>
+                <!-- Elimina definitivo -->
+                <form method="post" action="{{ url_for('destroy_problem', problem_id=problem.id) }}"
+                  onsubmit="return confirm('Eliminare definitivamente il ticket #{{ problem.id }}? Questa azione è irreversibile.')">
+                  <button type="submit" class="btn btn-danger w-100 btn-sm">🗑 Elimina definitivamente</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Modifica completa (solo admin o autore) -->
+        {% if session.get("role") == "admin" or session.get("username") == problem.autore %}
+          {% if problem.stato != "Chiuso" %}
+            <a href="{{ url_for('edit_problem', problem_id=problem.id) }}"
+              class="btn btn-outline-light w-100 btn-sm">✏ Modifica dati ticket</a>
+          {% endif %}
+        {% endif %}
+
+        <!-- Allegati -->
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <div class="card-title">📎 Allegati</div>
+
+            {% if allegati %}
+              <ul class="list-unstyled mb-3" style="font-size:.85rem;">
+                {% for a in allegati %}
+                  <li class="d-flex align-items-center justify-content-between gap-2 mb-1 py-1 border-bottom border-secondary">
+                    <a href="{{ url_for('download_allegato', cinema_folder=a.cinema_folder, filename=a.filename) }}"
+                       class="text-truncate text-info" style="max-width:160px;" title="{{ a.original }}">
+                      {{ a.original }}
+                    </a>
+                    {% if session.get("role") == "admin" or session.get("username") == problem.autore %}
+                      <form method="post"
+                        action="{{ url_for('delete_allegato', cinema_folder=a.cinema_folder, filename=a.filename) }}"
+                        onsubmit="return confirm('Eliminare l\'allegato?')" class="mb-0">
+                        <button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Elimina">🗑</button>
+                      </form>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted" style="font-size:.8rem;">Nessun allegato.</p>
+            {% endif %}
+
+            {% if session.get("role") == "admin" or session.get("username") == problem.autore %}
+              <form method="post" enctype="multipart/form-data"
+                action="{{ url_for('upload_allegato', problem_id=problem.id) }}">
+                <div class="input-group input-group-sm">
+                  <input type="file" name="allegato" class="form-control form-control-sm" required
+                    accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mov,.avi">
+                  <button type="submit" class="btn btn-outline-info btn-sm">Carica</button>
+                </div>
+                <div class="form-text" style="font-size:.7rem;">Max 50 MB · PDF, immagini, Office, video, ZIP</div>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Auto-scroll chat to bottom on load
+    const chatScroll = document.getElementById("chat-scroll");
+    if (chatScroll) chatScroll.scrollTop = chatScroll.scrollHeight;
+  </script>
+</body>
+</html>

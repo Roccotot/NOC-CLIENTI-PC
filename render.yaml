@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: sigrafilm-noc
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sigrafilm-db
+          property: connectionString
+
+databases:
+  - name: sigrafilm-db
+    databaseName: sigrafilm
+    user: sigrafilm

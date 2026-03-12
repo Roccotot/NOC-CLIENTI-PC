@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ u.username }} — Cinema assegnati</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') }}">
+        <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
+        <span class="nav-user-chip">{{ session.get("username") }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap py-2 py-lg-0">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">🎫 Ticket aperti</a>
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          {% endif %}
+          <a href="{{ url_for('export_excel') }}?foglio=tutto" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('import_excel') }}" class="btn btn-outline-warning btn-sm">📤 Importa</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
+            onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, msg in messages %}
+          <div class="alert alert-{{ category }} py-2">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Intestazione utente -->
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <div>
+        <h2 class="page-heading mb-0">{{ u.username }}</h2>
+        <div style="color:var(--text-3); font-size:.82rem; margin-top:.2rem;">
+          {% if u.role == 'admin' %}
+            <span class="nbadge nbadge-admin">Admin</span> — vede tutti i cinema
+          {% else %}
+            <span class="nbadge nbadge-user">User</span>
+            {% if u.email %} · {{ u.email }}{% endif %}
+            {% if u.telefono %} · {{ u.telefono }}{% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if u.role == 'admin' %}
+      <div class="alert alert-info py-2">
+        Gli utenti Admin vedono tutti i cinema automaticamente. Non è necessario assegnare cinema specifici.
+      </div>
+    {% else %}
+
+    <!-- Reset password -->
+    <div class="card shadow-sm mb-4">
+      <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
+        <div class="card-title" style="margin:0;">Reset password</div>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('reset_password', user_id=u.id) }}" class="d-flex gap-2 flex-wrap">
+          <input type="password" name="new_password" placeholder="Nuova password (min 8 caratteri)"
+            minlength="8" required class="form-control noc-field" style="max-width:280px;">
+          <button type="submit" class="btn btn-warning">Aggiorna password</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Form assegnazione cinema -->
+    <div class="card shadow-sm">
+      <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+        <div class="card-title" style="margin:0;">Cinema assegnati</div>
+        <span style="font-size:.78rem; color:var(--text-3);">
+          {{ assigned_ids|length }} / {{ all_cinemas|length }} selezionati
+          {% if assigned_ids|length == 0 %} — vede tutti{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <p style="font-size:.82rem; color:var(--text-2); margin-bottom:1rem;">
+          Spunta i cinema che questo utente può gestire. Se nessun cinema è selezionato, l'utente vedrà tutti i cinema.
+        </p>
+
+        <form method="post" action="{{ url_for('user_detail', user_id=u.id) }}">
+
+          <!-- Seleziona/deseleziona tutto -->
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll(true)">Seleziona tutti</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll(false)">Deseleziona tutti</button>
+          </div>
+
+          <!-- Lista cinema raggruppata per città -->
+          {% set ns = namespace(current_city='') %}
+          {% for c in all_cinemas %}
+            {% if c.città != ns.current_city %}
+              {% if not loop.first %}</div>{% endif %}
+              {% set ns.current_city = c.città %}
+              <div style="margin-bottom:.75rem;">
+              <div style="font-size:.72rem; font-weight:700; color:var(--text-3); letter-spacing:.08em; text-transform:uppercase; margin-bottom:.4rem; padding:.2rem 0; border-bottom:1px solid var(--border);">
+                {{ c.città }}
+              </div>
+            {% endif %}
+
+            <div class="form-check" style="margin-bottom:.3rem; padding-left:1.6rem;">
+              <input class="form-check-input cinema-check" type="checkbox"
+                name="cinema_ids" value="{{ c.id }}" id="cin-{{ c.id }}"
+                {% if c.id in assigned_ids %}checked{% endif %}>
+              <label class="form-check-label" for="cin-{{ c.id }}"
+                style="cursor:pointer; font-size:.9rem; color:var(--text-1);">
+                {{ c.nome }}
+                {% if c.telefono %}
+                  <span style="color:var(--text-3); font-size:.78rem; margin-left:.4rem;">{{ c.telefono }}</span>
+                {% endif %}
+              </label>
+            </div>
+          {% endfor %}
+          {% if all_cinemas %}</div>{% endif %}
+
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Salva assegnazioni</button>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-secondary ms-2">Annulla</a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    {% endif %}
+  </div>
+
+  <script>
+    function toggleAll(state) {
+      document.querySelectorAll('.cinema-check').forEach(cb => cb.checked = state);
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

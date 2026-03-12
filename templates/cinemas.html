@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestione Cinema — SigraFilm NOC</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/sorttable@1.0.2/sorttable.min.js"></script>
+  <style>
+    /* ── Mappa hero ──────────────────────────────────── */
+    #map-hero {
+      position: relative;
+      width: 100%;
+      height: 65vh;
+      min-height: 420px;
+    }
+    #cinema-map {
+      width: 100%;
+      height: 100%;
+    }
+    /* Ombra di separazione */
+    #map-hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      background: linear-gradient(to bottom, transparent, var(--bg-base));
+      pointer-events: none;
+      z-index: 500;
+    }
+
+    /* Badge count */
+    #map-count-badge {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      z-index: 1000;
+      background: rgba(13,17,23,.82);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .3rem .75rem;
+      border-radius: 20px;
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+      letter-spacing: .03em;
+    }
+    #map-count-badge span {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* Label titolo sovrapposta in basso-sinistra */
+    #map-label {
+      position: absolute;
+      bottom: 20px;
+      left: 16px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    #map-label h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0,0,0,.9);
+      margin: 0;
+      line-height: 1.2;
+    }
+    #map-label p {
+      font-size: .78rem;
+      color: rgba(255,255,255,.55);
+      margin: .15rem 0 0;
+    }
+
+    /* Marker personalizzato */
+    .cinema-dot {
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: 2.5px solid rgba(255,255,255,.85);
+      box-shadow: 0 0 0 0 rgba(230,57,70,.6);
+      animation: pulse-dot 2.2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%   { box-shadow: 0 0 0 0   rgba(230,57,70,.6); }
+      70%  { box-shadow: 0 0 0 9px rgba(230,57,70,.0); }
+      100% { box-shadow: 0 0 0 0   rgba(230,57,70,.0); }
+    }
+
+    /* Popup Leaflet custom */
+    .leaflet-popup.cinema-popup-wrap .leaflet-popup-content-wrapper {
+      background: rgba(13,17,23,.97) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 10px !important;
+      color: var(--text-1) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,.75) !important;
+      padding: 0 !important;
+    }
+    .leaflet-popup.cinema-popup-wrap .leaflet-popup-content { margin: 0 !important; }
+    .leaflet-popup.cinema-popup-wrap .leaflet-popup-tip-container { display: none; }
+    .leaflet-popup.cinema-popup-wrap .leaflet-popup-close-button {
+      color: var(--text-3) !important;
+      font-size: 1.1rem !important;
+      top: 6px !important; right: 8px !important;
+    }
+    .leaflet-popup.cinema-popup-wrap .leaflet-popup-close-button:hover { color: #fff !important; }
+
+    .cinema-popup {
+      font-family: 'Inter', sans-serif;
+      min-width: 210px;
+      max-width: 300px;
+      padding: .7rem .85rem .6rem;
+    }
+    .cp-nome {
+      display: block;
+      font-size: .95rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: .15rem;
+      padding-right: 1.2rem; /* spazio per X */
+    }
+    .cp-row {
+      display: block;
+      font-size: .76rem;
+      color: var(--text-3);
+      margin-bottom: .08rem;
+    }
+    .cp-row strong { color: var(--text-2); }
+    .cp-tickets-title {
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin: .55rem 0 .3rem;
+      border-top: 1px solid var(--border);
+      padding-top: .4rem;
+    }
+    .cp-ticket {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .28rem .4rem;
+      border-radius: 6px;
+      text-decoration: none;
+      margin-bottom: .2rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-1);
+      font-size: .77rem;
+      transition: background .12s, border-color .12s;
+    }
+    .cp-ticket:hover { background: #2d333b; border-color: var(--text-3); color: #fff; }
+    .cp-tid  { color: var(--text-3); font-size: .7rem; flex-shrink: 0; }
+    .cp-tsala{ color: var(--text-3); font-size: .7rem; flex-shrink: 0; }
+    .cp-ttipo{ flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cp-turg { font-size: .68rem; font-weight: 700; flex-shrink: 0; }
+    .cp-critico    .cp-turg { color: var(--red); }
+    .cp-urgente    .cp-turg { color: var(--yellow); }
+    .cp-non-urgente .cp-turg { color: var(--green); }
+    .cp-no-tickets {
+      font-size: .75rem;
+      color: var(--text-3);
+      margin-top: .45rem;
+      border-top: 1px solid var(--border);
+      padding-top: .4rem;
+    }
+
+    /* Leaflet zoom control tema scuro */
+    .leaflet-bar a {
+      background: rgba(22,27,34,.9) !important;
+      color: #fff !important;
+      border-color: var(--border) !important;
+    }
+    .leaflet-bar a:hover { background: var(--bg-input) !important; }
+    .leaflet-control-attribution {
+      background: rgba(13,17,23,.7) !important;
+      color: var(--text-3) !important;
+      font-size: .65rem !important;
+    }
+    .leaflet-control-attribution a { color: var(--cyan) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') }}">
+        <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
+        <span class="nav-user-chip">{{ session.get("username") }}</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap py-2 py-lg-0">
+          <a href="{{ url_for('dashboard') }}" class="btn btn-outline-light btn-sm">🎫 Ticket aperti</a>
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          {% endif %}
+          <a href="{{ url_for('export_excel') }}?foglio=cinema" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
+          {% if session.get("role") == "admin" %}
+            <a href="{{ url_for('import_excel') }}" class="btn btn-outline-warning btn-sm">📤 Importa</a>
+          {% endif %}
+          <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
+            onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Mappa hero (full width) ───────────────────────── -->
+  {% set map_count = cinemas | selectattr('lat') | list | length %}
+  <div id="map-hero">
+    <div id="cinema-map"></div>
+
+    <div id="map-count-badge">
+      <span>{{ map_count }}</span> cinema sulla mappa
+    </div>
+
+    <div id="map-label">
+      <h2>Gestione Cinema</h2>
+      <p>Passa il cursore su un marker per vedere i ticket aperti</p>
+    </div>
+  </div>
+
+  <!-- ── Contenuto ─────────────────────────────────────── -->
+  <div class="container mt-4">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, msg in messages %}
+        <div class="alert alert-{{ category }} py-2">{{ msg }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <!-- Form aggiunta nuovo cinema -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="card-title">Aggiungi cinema</div>
+        <form method="post">
+          <div class="row g-2">
+            <div class="col-12 col-md-4">
+              <input type="text" name="nome" class="form-control" placeholder="Nome cinema" required autocomplete="off">
+            </div>
+            <div class="col-12 col-md-2">
+              <input type="text" name="città" class="form-control" placeholder="Città" required autocomplete="off">
+            </div>
+            <div class="col-6 col-md-2">
+              <input type="text" name="telefono" class="form-control" placeholder="Telefono" autocomplete="off">
+            </div>
+            <div class="col-6 col-md-2">
+              <input type="number" name="num_sale" class="form-control" placeholder="Sale" min="1" max="30" value="1" required>
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end">
+              <button type="submit" class="btn btn-primary w-100">+ Aggiungi</button>
+            </div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-12">
+              <input type="text" name="indirizzo" class="form-control" placeholder="Indirizzo (es. Via Roma 1, Firenze)" autocomplete="off">
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Lista cinema -->
+    <div class="card shadow-sm">
+      <div class="card-body" style="padding:0;">
+        {% if cinemas %}
+          <table class="table table-hover mb-0 sortable" style="border-radius:10px; overflow:hidden; font-size:.875rem;">
+            <thead class="table-dark">
+              <tr>
+                <th class="sorttable_nosort" style="width:2.5rem; font-size:.7rem;">#</th>
+                <th>Città</th>
+                <th>Nome cinema</th>
+                <th style="width:4rem;">Sale</th>
+                <th>Telefono</th>
+                <th>Indirizzo</th>
+                <th class="sorttable_nosort text-center" style="width:5rem;">Ticket</th>
+                <th class="sorttable_nosort text-end" style="width:1px; white-space:nowrap;">Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in cinemas %}
+              <tr>
+                <td style="color:var(--text-3); font-size:.75rem;">{{ loop.index }}</td>
+                <td style="color:var(--text-2);">{{ c.città }}</td>
+                <td style="color:var(--text-1);"><strong style="color:var(--text-1);">{{ c.nome }}</strong></td>
+                <td style="color:var(--text-2); font-size:.82rem;">{{ c.num_sale }}</td>
+                <td style="color:var(--text-2); white-space:nowrap;">
+                  {% if c.telefono %}
+                    <a href="tel:{{ c.telefono }}" class="text-decoration-none">{{ c.telefono }}</a>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+                <td style="color:var(--text-2); font-size:.82rem;" title="{{ c.indirizzo or '' }}">
+                  {{ c.indirizzo or '—' }}
+                </td>
+                <td class="text-center">
+                  {% set tks = tickets_map.get(c.nome, []) %}
+                  {% if tks %}
+                    <button class="btn btn-sm btn-outline-danger"
+                      onclick="openTicketModal({{ c.nome|tojson }}, {{ tks|map(attribute='id')|list|tojson }}, {{ tks|map(attribute='sala')|list|tojson }}, {{ tks|map(attribute='tipo')|list|tojson }}, {{ tks|map(attribute='urgenza')|list|tojson }})"
+                      style="font-size:.75rem; font-weight:700; min-width:2.2rem;">
+                      {{ tks|length }}
+                    </button>
+                  {% else %}
+                    <span style="color:var(--text-3); font-size:.8rem;">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                  <a href="{{ url_for('edit_cinema', cinema_id=c.id) }}"
+                    class="btn btn-sm btn-warning me-1">✏</a>
+                  <form method="post"
+                    action="{{ url_for('delete_cinema', cinema_id=c.id) }}"
+                    class="d-inline"
+                    onsubmit="return confirm('Eliminare {{ c.nome }}?')">
+                    <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="empty-state">
+            <div class="empty-state-icon">🎬</div>
+            <div class="empty-state-title">Nessun cinema</div>
+            <div class="empty-state-sub">Aggiungi il primo cinema con il modulo sopra.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <p class="mt-3" style="font-size:.75rem; color:var(--text-3);">
+      I cinema eliminati non cancellano i ticket già aperti — il nome rimane salvato nei ticket esistenti.
+      Le coordinate si impostano dalla pagina di modifica (✏) del singolo cinema.
+    </p>
+
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    var cinemaData = [
+      {% for c in cinemas %}
+      {% if c.lat and c.lng %}
+      {
+        lat: {{ c.lat }},
+        lng: {{ c.lng }},
+        nome: {{ c.nome | tojson }},
+        città: {{ c.città | tojson }},
+        indirizzo: {{ (c.indirizzo or '') | tojson }},
+        telefono: {{ (c.telefono or '') | tojson }},
+        num_sale: {{ c.num_sale }},
+        tickets: [{% for p in tickets_map.get(c.nome, []) %}{ id:{{ p.id }}, sala:{{ p.sala|tojson }}, tipo:{{ p.tipo[:65]|tojson }}, urgenza:{{ p.urgenza|tojson }} }{% if not loop.last %},{% endif %}{% endfor %}]
+      },
+      {% endif %}
+      {% endfor %}
+    ];
+
+    var map = L.map('cinema-map', { zoomControl: true, attributionControl: true });
+
+    // Tile CartoDB dark matter
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(map);
+
+    var cinemaIcon = L.divIcon({
+      className: '',
+      html: '<div class="cinema-dot"></div>',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      tooltipAnchor: [0, -10]
+    });
+
+    if (cinemaData.length > 0) {
+      var bounds = [];
+      cinemaData.forEach(function(c) {
+        // Intestazione popup
+        var html = '<div class="cinema-popup">'
+          + '<span class="cp-nome">🎬 ' + c.nome + '</span>'
+          + '<span class="cp-row"><strong>' + c.città + '</strong>'
+          + (c.num_sale ? ' &nbsp;·&nbsp; ' + c.num_sale + ' sal' + (c.num_sale === 1 ? 'a' : 'e') : '') + '</span>'
+          + (c.indirizzo ? '<span class="cp-row">📍 ' + c.indirizzo + '</span>' : '')
+          + (c.telefono  ? '<span class="cp-row">📞 ' + c.telefono  + '</span>' : '');
+
+        // Ticket aperti
+        if (c.tickets && c.tickets.length > 0) {
+          html += '<div class="cp-tickets-title">Ticket aperti (' + c.tickets.length + ')</div>';
+          c.tickets.forEach(function(t) {
+            var cls = t.urgenza === 'Critico' ? 'cp-critico'
+                    : t.urgenza === 'Urgente' ? 'cp-urgente' : 'cp-non-urgente';
+            html += '<a href="/problems/' + t.id + '" class="cp-ticket ' + cls + '">'
+              + '<span class="cp-tid">#' + t.id + '</span>'
+              + '<span class="cp-tsala">S.' + t.sala + '</span>'
+              + '<span class="cp-ttipo">' + t.tipo + '</span>'
+              + '<span class="cp-turg">' + t.urgenza + '</span>'
+              + '</a>';
+          });
+        } else {
+          html += '<div class="cp-no-tickets">✅ Nessun ticket aperto</div>';
+        }
+        html += '</div>';
+
+        var marker = L.marker([c.lat, c.lng], { icon: cinemaIcon }).addTo(map);
+        marker.bindPopup(html, { className: 'cinema-popup-wrap', maxWidth: 320 });
+        marker.on('mouseover', function() { this.openPopup(); });
+        bounds.push([c.lat, c.lng]);
+      });
+      map.fitBounds(bounds, { padding: [60, 60] });
+    } else {
+      map.setView([43.5, 11.0], 7);
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Modal ticket aperti -->
+  <div class="modal fade" id="ticketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content" style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px;">
+        <div class="modal-header" style="border-bottom:1px solid var(--border);">
+          <h5 class="modal-title" style="color:var(--text-1); font-size:.95rem; font-weight:700;" id="ticketModalTitle"></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="ticketModalBody" style="padding:.75rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var _ticketModal = new bootstrap.Modal(document.getElementById('ticketModal'));
+    function openTicketModal(nome, ids, sale, tipi, urgenze) {
+      document.getElementById('ticketModalTitle').textContent = '🎬 ' + nome + ' — Ticket aperti';
+      var urgOrder = { 'Critico': 0, 'Urgente': 1, 'Non urgente': 2 };
+      var urgColor = { 'Critico': 'var(--red)', 'Urgente': 'var(--yellow)', 'Non urgente': 'var(--green)' };
+      // costruisce lista ordinata per urgenza
+      var items = ids.map(function(id, i) {
+        return { id: id, sala: sale[i], tipo: tipi[i], urgenza: urgenze[i] };
+      }).sort(function(a, b) { return (urgOrder[a.urgenza] || 9) - (urgOrder[b.urgenza] || 9); });
+
+      var html = '';
+      items.forEach(function(t) {
+        html += '<a href="/problems/' + t.id + '" style="'
+          + 'display:flex; align-items:center; gap:.5rem; padding:.4rem .55rem;'
+          + 'border-radius:7px; text-decoration:none; margin-bottom:.3rem;'
+          + 'background:var(--bg-input); border:1px solid var(--border); color:var(--text-1);'
+          + 'font-size:.82rem; transition:background .12s;"'
+          + ' onmouseover="this.style.background=\'#2d333b\'" onmouseout="this.style.background=\'var(--bg-input)\'">'
+          + '<span style="color:var(--text-3); font-size:.72rem; flex-shrink:0;">#' + t.id + '</span>'
+          + '<span style="color:var(--text-3); font-size:.72rem; flex-shrink:0;">S.' + t.sala + '</span>'
+          + '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + t.tipo + '</span>'
+          + '<span style="font-size:.7rem; font-weight:700; flex-shrink:0; color:' + (urgColor[t.urgenza] || 'var(--text-3)') + ';">' + t.urgenza + '</span>'
+          + '</a>';
+      });
+      document.getElementById('ticketModalBody').innerHTML = html;
+      _ticketModal.show();
+    }
+  </script>
+</body>
+</html>
