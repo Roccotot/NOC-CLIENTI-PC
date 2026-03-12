@@ -273,6 +273,20 @@ textarea.form-control { resize: vertical; }
 .row-urgente     > td:first-child { border-left: 3px solid var(--yellow) !important; }
 .row-non-urgente > td:first-child { border-left: 3px solid var(--green) !important; }
 
+/* New ticket highlight — mai aperto dall'utente */
+tr.row-nuovo { background: rgba(88,166,255,.06) !important; }
+tr.row-nuovo > td { color: var(--text-1) !important; }
+.nbadge-nuovo {
+  background: rgba(88,166,255,.15);
+  color: var(--cyan);
+  border-color: rgba(88,166,255,.4);
+  animation: pulse-nuovo 2s ease-in-out infinite;
+}
+@keyframes pulse-nuovo {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88,166,255,.4); }
+  50%       { box-shadow: 0 0 0 4px rgba(88,166,255,.0); }
+}
+
 .table-responsive {
   border: 1px solid var(--border);
   border-radius: 10px;
