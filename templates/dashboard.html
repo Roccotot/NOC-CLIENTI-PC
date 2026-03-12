@@ -232,17 +232,23 @@
           </thead>
           <tbody>
             {% for p in problems %}
-            <tr class="{% if p.urgenza == 'Critico' %}row-critico{% elif p.urgenza == 'Urgente' %}row-urgente{% else %}row-non-urgente{% endif %}"
+            <tr class="{% if p.urgenza == 'Critico' %}row-critico{% elif p.urgenza == 'Urgente' %}row-urgente{% else %}row-non-urgente{% endif %}{% if p.id in new_ticket_ids %} row-nuovo{% endif %}"
               style="cursor:pointer;"
               onclick="window.location='{{ url_for('ticket_detail', problem_id=p.id) }}'">
               <td class="d-none d-md-table-cell">
                 <span style="color:var(--text-3); font-size:.78rem; font-weight:600;">#{{ p.id }}</span>
+                {% if p.id in new_ticket_ids %}
+                  <span class="nbadge nbadge-nuovo ms-1" style="font-size:.6rem; vertical-align:middle;">NUOVO</span>
+                {% endif %}
               </td>
               <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ p.città }}</td>
               <td style="font-weight:600;">
                 {{ p.cinema }}
                 <div class="d-md-none" style="font-size:.72rem; color:var(--text-3); font-weight:400; margin-top:.15rem;">
                   {{ p.città }} · #{{ p.id }}
+                  {% if p.id in new_ticket_ids %}
+                    <span class="nbadge nbadge-nuovo ms-1" style="font-size:.6rem; vertical-align:middle;">NUOVO</span>
+                  {% endif %}
                 </div>
               </td>
               <td style="font-size:.82rem; font-weight:600; color:var(--text-2);">S.{{ p.sala }}</td>

@@ -139,6 +139,9 @@ def dashboard():
             unread = sum(1 for c in comments if c.data_ora and c.data_ora > last_read)
         chat_info[p.id] = {"total": total, "unread": unread}
 
+    # Ticket mai aperti dall'utente corrente (evidenziati come "Nuovo")
+    new_ticket_ids = {p.id for p in problems if p.id not in reads}
+
     return render_template(
         "dashboard.html",
         problems=problems,
@@ -148,6 +151,7 @@ def dashboard():
         cinemas=cinemas,
         chat_info=chat_info,
         single_cinema=single_cinema,
+        new_ticket_ids=new_ticket_ids,
     )
 
 
