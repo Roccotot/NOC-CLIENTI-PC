@@ -31,6 +31,7 @@
           {% if session.get("role") == "admin" %}
             <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
             <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+            <a href="{{ url_for('noc_devices') }}" class="btn btn-outline-light btn-sm">🖥 Dispositivi</a>
           {% endif %}
           <a href="{{ url_for('export_excel') }}?foglio=tutto" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
           {% if session.get("role") == "admin" %}
