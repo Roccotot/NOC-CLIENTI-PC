@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
 import io
 import re
+import socket
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -306,6 +307,37 @@ def update_ticket(problem_id):
     if nuovo_stato == "Chiuso":
         return redirect(url_for("closed_tickets"))
     return redirect(url_for("ticket_detail", problem_id=p.id))
+
+
+# --- API PING (solo admin) ---
+@app.route("/api/ping/<ip>")
+def api_ping(ip):
+    if "user_id" not in session or session.get("role") != "admin":
+        return jsonify(ok=False), 403
+    # Valida che sia un IP o hostname ragionevole
+    if not re.match(r'^[\w.\-]+$', ip):
+        return jsonify(ok=False), 400
+    try:
+        s = socket.create_connection((ip, 80), timeout=2)
+        s.close()
+        return jsonify(ok=True)
+    except Exception:
+        pass
+    # Prova porta 443
+    try:
+        s = socket.create_connection((ip, 443), timeout=2)
+        s.close()
+        return jsonify(ok=True)
+    except Exception:
+        pass
+    # Prova porta 22 (SSH)
+    try:
+        s = socket.create_connection((ip, 22), timeout=2)
+        s.close()
+        return jsonify(ok=True)
+    except Exception:
+        pass
+    return jsonify(ok=False)
 
 
 # --- NOC DISPOSITIVI (solo admin) ---
