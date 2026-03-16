@@ -637,8 +637,13 @@ async function pingDevice(ip, dot) {
   pingStatusMap[ip] = 'checking';
   updateGlobalStatus();
   dot.className = dot.className.replace('ok','').replace('err','').replace('checking','') + ' checking';
-  const ok = await fetch('/api/ping/' + encodeURIComponent(ip), { cache:'no-store' })
-    .then(r => r.json()).then(d => d.ok).catch(() => false);
+  const ok = await new Promise(res => {
+    const c = new AbortController();
+    const t = setTimeout(() => { c.abort(); res(false); }, 3000);
+    fetch('http://' + ip, { signal:c.signal, mode:'no-cors', cache:'no-store' })
+      .then(() => { clearTimeout(t); res(true); })
+      .catch(() => { clearTimeout(t); res(false); });
+  });
   pingStatusMap[ip] = ok ? 'ok' : 'err';
   updateGlobalStatus();
   // reset classi e assegna risultato
