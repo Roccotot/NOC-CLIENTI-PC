@@ -18,6 +18,9 @@
         <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
         <span class="nav-user-chip">{{ session.get("username") }}</span>
       </a>
+      {% if session.get("role") == "admin" %}
+      <a href="{{ url_for('noc_devices') }}" class="btn btn-outline-info btn-sm ms-2">🖥 Dispositivi</a>
+      {% endif %}
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
         <span class="navbar-toggler-icon"></span>
       </button>
