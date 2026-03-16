@@ -329,6 +329,20 @@ def api_ping(ip):
         return jsonify(ok=False)
 
 
+@app.route("/api/check-port/<ip>/<int:port>")
+def api_check_port(ip, port):
+    if "user_id" not in session or session.get("role") != "admin":
+        return jsonify(ok=False), 403
+    if not re.match(r'^[\d.]+$', ip):
+        return jsonify(ok=False), 400
+    try:
+        s = socket.create_connection((ip, port), timeout=3)
+        s.close()
+        return jsonify(ok=True)
+    except Exception:
+        return jsonify(ok=False)
+
+
 # --- NOC DISPOSITIVI (solo admin) ---
 @app.route("/dispositivi")
 def noc_devices():
