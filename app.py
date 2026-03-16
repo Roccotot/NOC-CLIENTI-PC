@@ -6,6 +6,7 @@ import os
 import io
 import re
 import socket
+import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -314,30 +315,18 @@ def update_ticket(problem_id):
 def api_ping(ip):
     if "user_id" not in session or session.get("role") != "admin":
         return jsonify(ok=False), 403
-    # Valida che sia un IP o hostname ragionevole
-    if not re.match(r'^[\w.\-]+$', ip):
+    if not re.match(r'^[\d.]+$', ip):
         return jsonify(ok=False), 400
     try:
-        s = socket.create_connection((ip, 80), timeout=2)
-        s.close()
-        return jsonify(ok=True)
+        result = subprocess.run(
+            ["ping", "-c", "1", "-W", "1", ip],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3
+        )
+        return jsonify(ok=(result.returncode == 0))
     except Exception:
-        pass
-    # Prova porta 443
-    try:
-        s = socket.create_connection((ip, 443), timeout=2)
-        s.close()
-        return jsonify(ok=True)
-    except Exception:
-        pass
-    # Prova porta 22 (SSH)
-    try:
-        s = socket.create_connection((ip, 22), timeout=2)
-        s.close()
-        return jsonify(ok=True)
-    except Exception:
-        pass
-    return jsonify(ok=False)
+        return jsonify(ok=False)
 
 
 # --- NOC DISPOSITIVI (solo admin) ---
