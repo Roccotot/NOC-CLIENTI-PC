@@ -308,6 +308,17 @@ def update_ticket(problem_id):
     return redirect(url_for("ticket_detail", problem_id=p.id))
 
 
+# --- NOC DISPOSITIVI (solo admin) ---
+@app.route("/dispositivi")
+def noc_devices():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if session.get("role") != "admin":
+        flash("Accesso riservato agli amministratori.", "danger")
+        return redirect(url_for("dashboard"))
+    return render_template("noc_devices.html")
+
+
 # --- ARCHIVIO TICKET CHIUSI ---
 @app.route("/closed")
 def closed_tickets():
