@@ -4,3 +4,4 @@ openpyxl
 waitress
 pystray
 pillow
+reportlab
