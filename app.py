@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, date
 import os
 import io
 import re
@@ -9,6 +9,10 @@ import socket
 import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas as rl_canvas
 
 from storage import store
 
@@ -596,13 +600,6 @@ def etichetta_cinema(cinema_id):
     if not c:
         abort(404)
 
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import Paragraph
-
     buf = io.BytesIO()
     W, H = A4  # 595.27 x 841.89 pt
 
@@ -737,7 +734,6 @@ def etichetta_cinema(cinema_id):
     footer_y = margin + 5*mm
     cv.setFont("Helvetica-Oblique", 7)
     cv.setFillColor(grigio)
-    from datetime import date
     cv.drawCentredString(W/2, footer_y, f"Generata il {date.today().strftime('%d/%m/%Y')} — SigraFilm NOC")
 
     cv.save()
