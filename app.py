@@ -9,10 +9,14 @@ import socket
 import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas as rl_canvas
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+    _reportlab_ok = True
+except ImportError:
+    _reportlab_ok = False
 
 from storage import store
 
@@ -596,6 +600,8 @@ def edit_cinema(cinema_id):
 def etichetta_cinema(cinema_id):
     if session.get("role") != "admin":
         return "Accesso negato", 403
+    if not _reportlab_ok:
+        return "Libreria PDF non installata. Eseguire: pip install reportlab", 500
     c = store.get_cinema_by_id(cinema_id)
     if not c:
         abort(404)
