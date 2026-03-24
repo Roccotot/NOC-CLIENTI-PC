@@ -588,6 +588,165 @@ def edit_cinema(cinema_id):
     return render_template("edit_cinema.html", c=c)
 
 
+@app.route("/admin/cinemas/<int:cinema_id>/etichetta")
+def etichetta_cinema(cinema_id):
+    if session.get("role") != "admin":
+        return "Accesso negato", 403
+    c = store.get_cinema_by_id(cinema_id)
+    if not c:
+        abort(404)
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph
+
+    buf = io.BytesIO()
+    W, H = A4  # 595.27 x 841.89 pt
+
+    cv = rl_canvas.Canvas(buf, pagesize=A4)
+
+    # ── Palette ──────────────────────────────────────────────
+    nero      = colors.HexColor("#1a1a1a")
+    grigio    = colors.HexColor("#444444")
+    grigio_bg = colors.HexColor("#f5f5f5")
+    bianco    = colors.white
+
+    # ── Helper: linea separatrice ─────────────────────────────
+    def hrule(y, spessore=0.5, col=grigio):
+        cv.setStrokeColor(col)
+        cv.setLineWidth(spessore)
+        cv.line(20*mm, y, W - 20*mm, y)
+
+    # ══════════════════════════════════════════════════════════
+    # CORNICE ESTERNA
+    # ══════════════════════════════════════════════════════════
+    margin = 15*mm
+    cv.setStrokeColor(nero)
+    cv.setLineWidth(2)
+    cv.rect(margin, margin, W - 2*margin, H - 2*margin, stroke=1, fill=0)
+
+    # ══════════════════════════════════════════════════════════
+    # INTESTAZIONE  (striscia scura in cima)
+    # ══════════════════════════════════════════════════════════
+    header_h = 28*mm
+    header_y = H - margin - header_h
+    cv.setFillColor(nero)
+    cv.rect(margin, header_y, W - 2*margin, header_h, stroke=0, fill=1)
+
+    cv.setFillColor(bianco)
+    cv.setFont("Helvetica-Bold", 17)
+    cv.drawCentredString(W/2, header_y + 16*mm, "SIGRAFILM S.A.S – CINEMECCANICA")
+    cv.setFont("Helvetica", 10)
+    cv.drawCentredString(W/2, header_y + 9*mm, "Distribuzione e assistenza apparecchiature cinematografiche")
+    cv.setFont("Helvetica-Oblique", 8)
+    cv.drawCentredString(W/2, header_y + 3.5*mm, "ETICHETTA DI SPEDIZIONE")
+
+    # ══════════════════════════════════════════════════════════
+    # SEZIONE MITTENTE
+    # ══════════════════════════════════════════════════════════
+    mit_top = header_y - 8*mm
+    mit_h   = 70*mm
+    mit_y   = mit_top - mit_h
+
+    # sfondo chiaro
+    cv.setFillColor(grigio_bg)
+    cv.rect(margin, mit_y, W - 2*margin, mit_h, stroke=0, fill=1)
+
+    # etichetta "MITTENTE"
+    cv.setFillColor(nero)
+    cv.setFont("Helvetica-Bold", 8)
+    cv.drawString(margin + 5*mm, mit_top - 5*mm, "MITTENTE")
+    hrule(mit_top - 7*mm, spessore=1, col=nero)
+
+    # dati mittente
+    mit_lines = [
+        ("Helvetica-Bold", 16, "SIGRAFILM S.A.S – CINEMECCANICA"),
+        ("Helvetica", 12,      "Via Sant'Antonino 7r"),
+        ("Helvetica", 12,      "50123 FIRENZE (FI)"),
+        ("Helvetica", 11,      "Tel. 055 290746   Cell. 338-1025100"),
+        ("Helvetica-Oblique", 10, "sigrafilm@mclink.it"),
+    ]
+    ty = mit_top - 14*mm
+    for font, size, testo in mit_lines:
+        cv.setFont(font, size)
+        cv.setFillColor(nero if size >= 12 else grigio)
+        cv.drawString(margin + 7*mm, ty, testo)
+        ty -= (size + 4)
+
+    # ══════════════════════════════════════════════════════════
+    # FRECCIA / DIVISORE
+    # ══════════════════════════════════════════════════════════
+    arrow_y = mit_y - 10*mm
+    hrule(arrow_y + 5*mm, spessore=0.5)
+    cv.setFillColor(nero)
+    cv.setFont("Helvetica-Bold", 22)
+    cv.drawCentredString(W/2, arrow_y - 3*mm, "▼")
+
+    # ══════════════════════════════════════════════════════════
+    # SEZIONE DESTINATARIO
+    # ══════════════════════════════════════════════════════════
+    dest_top = arrow_y - 14*mm
+    dest_h   = 100*mm
+    dest_y   = dest_top - dest_h
+
+    cv.setFillColor(bianco)
+    cv.setStrokeColor(nero)
+    cv.setLineWidth(1.5)
+    cv.rect(margin, dest_y, W - 2*margin, dest_h, stroke=1, fill=1)
+
+    cv.setFillColor(nero)
+    cv.setFont("Helvetica-Bold", 8)
+    cv.drawString(margin + 5*mm, dest_top - 5*mm, "DESTINATARIO")
+    hrule(dest_top - 7*mm, spessore=1, col=nero)
+
+    # dati destinatario
+    dest_nome     = (c.nome or "").upper()
+    dest_indirizzo= (c.indirizzo or "")
+    dest_città    = (c.città or "")
+    dest_tel      = (c.telefono or "")
+
+    ty = dest_top - 16*mm
+    cv.setFillColor(nero)
+    cv.setFont("Helvetica-Bold", 22)
+    cv.drawString(margin + 7*mm, ty, dest_nome)
+    ty -= 28
+
+    if dest_indirizzo:
+        cv.setFont("Helvetica", 16)
+        cv.setFillColor(grigio)
+        cv.drawString(margin + 7*mm, ty, dest_indirizzo)
+        ty -= 22
+
+    if dest_città:
+        cv.setFont("Helvetica-Bold", 16)
+        cv.setFillColor(nero)
+        cv.drawString(margin + 7*mm, ty, dest_città)
+        ty -= 22
+
+    if dest_tel:
+        cv.setFont("Helvetica", 12)
+        cv.setFillColor(grigio)
+        cv.drawString(margin + 7*mm, ty, f"Tel. {dest_tel}")
+
+    # ══════════════════════════════════════════════════════════
+    # PIE' DI PAGINA
+    # ══════════════════════════════════════════════════════════
+    footer_y = margin + 5*mm
+    cv.setFont("Helvetica-Oblique", 7)
+    cv.setFillColor(grigio)
+    from datetime import date
+    cv.drawCentredString(W/2, footer_y, f"Generata il {date.today().strftime('%d/%m/%Y')} — SigraFilm NOC")
+
+    cv.save()
+    buf.seek(0)
+    nome_file = f"etichetta_{c.nome.replace(' ', '_')}.pdf"
+    return send_file(buf, mimetype="application/pdf",
+                     as_attachment=True, download_name=nome_file)
+
+
 @app.route("/admin/cinemas/<int:cinema_id>/delete", methods=["POST"])
 def delete_cinema(cinema_id):
     if session.get("role") != "admin":
