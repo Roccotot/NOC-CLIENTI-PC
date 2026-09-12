@@ -9,6 +9,31 @@ import socket
 import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+
+
+def _carica_env() -> None:
+    """Carica le variabili dal file .env (se presente) senza dipendenze esterne."""
+    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.isfile(percorso):
+        return
+    try:
+        with open(percorso, encoding="utf-8") as f:
+            for riga in f:
+                riga = riga.strip()
+                if not riga or riga.startswith("#") or "=" not in riga:
+                    continue
+                chiave, _, valore = riga.partition("=")
+                chiave = chiave.strip()
+                valore = valore.strip().strip('"').strip("'")
+                # Le variabili di sistema hanno la precedenza sul file
+                if chiave and chiave not in os.environ:
+                    os.environ[chiave] = valore
+    except Exception as e:
+        print(f"[env] Impossibile leggere .env: {e}")
+
+
+_carica_env()
+
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
@@ -19,6 +44,7 @@ except ImportError:
     _reportlab_ok = False
 
 from storage import store
+import mailer
 
 # --- CONFIGURAZIONE ---
 app = Flask(__name__)
@@ -194,6 +220,9 @@ def add_comment(problem_id):
     testo = request.form.get("testo", "").strip()
     if testo:
         store.add_comment(p.id, session["username"], session["role"], testo)
+        # Notifica solo se scrive un cliente (non un admin)
+        if session["role"] != "admin":
+            mailer.notifica_nuovo_messaggio(p, session["username"], testo)
     return redirect(url_for("ticket_detail", problem_id=p.id) + "#chat-bottom")
 
 
@@ -389,9 +418,12 @@ def add_problem():
         return redirect(url_for("dashboard"))
     cinema_obj = store.get_cinema_by_nome(cinema_nome)
     città = cinema_obj.città if cinema_obj else ""
-    store.create_problem(cinema=cinema_nome, città=città, sala=sala,
-                         tipo=tipo, urgenza=urgenza, stato=stato,
-                         autore=session["username"])
+    nuovo = store.create_problem(cinema=cinema_nome, città=città, sala=sala,
+                                 tipo=tipo, urgenza=urgenza, stato=stato,
+                                 autore=session["username"])
+    # Notifica solo se il ticket è aperto da un cliente (non da un admin)
+    if session["role"] != "admin":
+        mailer.notifica_nuovo_ticket(nuovo)
     flash("Problema aggiunto con successo.", "success")
     return redirect(url_for("dashboard"))
 
