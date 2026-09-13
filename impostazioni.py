@@ -117,14 +117,38 @@ def salva(nuove: dict) -> None:
             raise
 
 
+def campi_mancanti() -> list:
+    """
+    Nomi dei campi obbligatori ancora vuoti, come si chiamano nella pagina.
+
+    Restituisce la lista invece di un semplice sì/no perché dire soltanto
+    "compila i campi obbligatori" non aiuta: bisogna dire quali.
+    """
+    imp = tutte()
+    mancanti = []
+
+    if not imp.get("notify_email"):
+        mancanti.append("Manda le notifiche a")
+
+    metodo = imp.get("metodo_invio")
+
+    if metodo == "web":
+        if not imp.get("api_key"):
+            mancanti.append("Chiave API di Brevo")
+        if not (imp.get("smtp_from") or imp.get("smtp_user")):
+            mancanti.append("Email mittente")
+        return mancanti
+
+    # smtp e blat usano gli stessi dati del server di posta
+    if not imp.get("smtp_host"):
+        mancanti.append("Server")
+    if not imp.get("smtp_user"):
+        mancanti.append("Casella")
+    if metodo == "blat" and not imp.get("blat_path"):
+        mancanti.append("Percorso di blat.exe")
+    return mancanti
+
+
 def configurato() -> bool:
     """True se c'è abbastanza per provare a inviare."""
-    imp = tutte()
-    if not imp.get("notify_email"):
-        return False
-    metodo = imp.get("metodo_invio")
-    if metodo == "web":
-        return bool(imp.get("api_key") and (imp.get("smtp_from") or imp.get("smtp_user")))
-    if metodo == "blat":
-        return bool(imp.get("blat_path") and imp.get("smtp_host") and imp.get("smtp_user"))
-    return bool(imp.get("smtp_host") and imp.get("smtp_user"))
+    return not campi_mancanti()

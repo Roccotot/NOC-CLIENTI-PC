@@ -593,8 +593,11 @@ def impostazioni_notifiche():
         })
 
         if azione == "prova":
-            if not impostazioni.configurato():
-                flash("Compila prima i campi obbligatori, poi riprova.", "warning")
+            mancanti = impostazioni.campi_mancanti()
+            if mancanti:
+                elenco = ", ".join(f"«{m}»" for m in mancanti)
+                flash(f"Manca ancora: {elenco}. "
+                      f"Compila e riprova.", "warning")
                 return redirect(url_for("impostazioni_notifiche"))
             destinatario = impostazioni.leggi("notify_email")
             try:
