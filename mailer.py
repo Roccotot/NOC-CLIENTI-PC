@@ -1,80 +1,163 @@
 """
 Invio notifiche email per nuovi ticket e nuovi messaggi dei clienti.
 
-Configurazione tramite variabili d'ambiente (file .env o variabili di sistema):
+Le impostazioni si leggono da impostazioni.py, quindi si cambiano dalla
+pagina web del portale senza riavviare il sito.
 
-    SMTP_HOST       server SMTP          (es. smtps.aruba.it)
-    SMTP_PORT       porta                (default 587)
-    SMTP_USER       utente / indirizzo   (es. assistenza@sigrafilm.it)
-    SMTP_PASSWORD   password casella
-    SMTP_FROM       mittente visualizzato (default = SMTP_USER)
-    SMTP_SSL        "1" per SSL diretto porta 465, altrimenti STARTTLS
-    NOTIFY_EMAIL    destinatario notifiche (default assistenza@sigrafilm.it)
-    APP_BASE_URL    url pubblico del sito, per i link nelle email
+Due modi di invio:
 
-Se SMTP_HOST o SMTP_USER non sono configurati le notifiche vengono
-silenziosamente saltate: il sito continua a funzionare normalmente.
+  "smtp" — collegamento diretto al server di posta (porta 465/587).
+           E' il modo classico, ma molte reti bloccano quelle porte.
+
+  "web"  — invio tramite il servizio Brevo, che espone un'interfaccia web
+           sulla porta 443: funziona anche dove l'SMTP e' bloccato.
+
+Se manca la configurazione le notifiche vengono saltate e il sito continua
+a funzionare normalmente.
 """
-import os
+import json
 import ssl
 import smtplib
 import threading
 import traceback
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from config import carica_env
+import impostazioni
 
-# Le impostazioni si leggono qui sotto, quindi il .env va caricato prima:
-# così il modulo funziona anche se importato per conto suo.
-carica_env()
-
-SMTP_HOST     = os.environ.get("SMTP_HOST", "").strip()
-SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER     = os.environ.get("SMTP_USER", "").strip()
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-SMTP_FROM     = os.environ.get("SMTP_FROM", "").strip() or SMTP_USER
-SMTP_SSL      = os.environ.get("SMTP_SSL", "").strip() in ("1", "true", "yes")
-NOTIFY_EMAIL  = os.environ.get("NOTIFY_EMAIL", "assistenza@sigrafilm.it").strip()
-APP_BASE_URL  = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+URL_BREVO = "https://api.brevo.com/v3/smtp/email"
+TIMEOUT = 20
 
 FROM_NAME = "SigraFilm NOC"
 
 
 def is_configured() -> bool:
-    """True se ci sono abbastanza dati per tentare l'invio."""
-    return bool(SMTP_HOST and SMTP_USER and NOTIFY_EMAIL)
+    """True se c'è abbastanza configurazione per tentare l'invio."""
+    return impostazioni.configurato()
 
 
-def _send(subject: str, html: str, testo: str, destinatario: str = "") -> None:
-    """Invio effettivo (bloccante). Chiamato dentro un thread."""
+def _mittente(imp: dict) -> str:
+    return imp.get("smtp_from") or imp.get("smtp_user") or ""
+
+
+def _invia_smtp(imp, subject, html, testo, destinatario):
+    """Invio classico, collegandosi al server di posta."""
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"]    = formataddr((FROM_NAME, SMTP_FROM))
-    msg["To"]      = destinatario or NOTIFY_EMAIL
+    msg["From"]    = formataddr((FROM_NAME, _mittente(imp)))
+    msg["To"]      = destinatario
     msg.set_content(testo)
     msg.add_alternative(html, subtype="html")
 
-    try:
-        if SMTP_SSL:
-            ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=20) as s:
-                s.login(SMTP_USER, SMTP_PASSWORD)
-                s.send_message(msg)
-        else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+    host = imp["smtp_host"]
+    porta = int(imp.get("smtp_port") or 465)
+    utente = imp.get("smtp_user", "")
+    password = imp.get("smtp_password", "")
+
+    if str(imp.get("smtp_ssl", "")).strip() in ("1", "true", "yes"):
+        with smtplib.SMTP_SSL(host, porta, context=ssl.create_default_context(),
+                              timeout=TIMEOUT) as s:
+            if password:
+                s.login(utente, password)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, porta, timeout=TIMEOUT) as s:
+            s.ehlo()
+            try:
+                s.starttls(context=ssl.create_default_context())
                 s.ehlo()
-                try:
-                    s.starttls(context=ssl.create_default_context())
-                    s.ehlo()
-                except smtplib.SMTPNotSupportedError:
-                    pass  # server senza TLS: procedi comunque
-                if SMTP_PASSWORD:
-                    s.login(SMTP_USER, SMTP_PASSWORD)
-                s.send_message(msg)
-        print(f"[mail] Notifica inviata a {NOTIFY_EMAIL}: {subject}")
+            except smtplib.SMTPNotSupportedError:
+                pass
+            if password:
+                s.login(utente, password)
+            s.send_message(msg)
+
+
+def _invia_web(imp, subject, html, testo, destinatario):
+    """Invio tramite Brevo: usa la porta 443, quindi passa dove l'SMTP no."""
+    payload = {
+        "sender": {"email": _mittente(imp), "name": FROM_NAME},
+        "to": [{"email": destinatario}],
+        "subject": subject,
+        "htmlContent": html,
+        "textContent": testo,
+    }
+    richiesta = urllib.request.Request(
+        URL_BREVO,
+        data=json.dumps(payload).encode(),
+        headers={"api-key": imp.get("api_key", ""),
+                 "content-type": "application/json",
+                 "accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(richiesta, timeout=TIMEOUT) as r:
+            r.read()
+    except urllib.error.HTTPError as e:
+        dettaglio = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"Brevo ha rifiutato l'invio (HTTP {e.code}): {dettaglio}")
+
+
+def verifica_credenziali_pop3() -> str:
+    """
+    Prova ad accedere alla casella in lettura (POP3).
+
+    Non serve a ricevere posta — il sito non la legge — ma a capire se un
+    fallimento dell'invio dipende dalle credenziali o solo dalla porta SMTP
+    bloccata: il POP3 usa le stesse credenziali su una porta diversa.
+    Restituisce un messaggio da mostrare all'utente.
+    """
+    import poplib
+
+    imp = impostazioni.tutte()
+    host = imp.get("pop3_host", "").strip()
+    if not host:
+        raise ValueError("Compila prima il server POP3.")
+
+    porta = int(imp.get("pop3_port") or 995)
+    utente = imp.get("pop3_user") or imp.get("smtp_user") or ""
+    password = imp.get("pop3_password") or imp.get("smtp_password") or ""
+    if not utente or not password:
+        raise ValueError("Servono utente e password (anche quelli SMTP vanno bene).")
+
+    if str(imp.get("pop3_ssl", "")).strip() in ("1", "true", "yes"):
+        m = poplib.POP3_SSL(host, porta, timeout=TIMEOUT)
+    else:
+        m = poplib.POP3(host, porta, timeout=TIMEOUT)
+    try:
+        m.user(utente)
+        m.pass_(password)
+        quanti = len(m.list()[1])
+        return (f"Accesso riuscito: la casella «{utente}» risponde e contiene "
+                f"{quanti} messaggi. Le credenziali sono corrette.")
+    finally:
+        try:
+            m.quit()
+        except Exception:
+            pass
+
+
+def invia_adesso(subject: str, html: str, testo: str, destinatario: str = "") -> None:
+    """
+    Invio immediato e bloccante, senza catturare gli errori.
+    Serve al pulsante "invia prova" della pagina impostazioni, che deve
+    poter mostrare il motivo esatto del fallimento.
+    """
+    imp = impostazioni.tutte()
+    destinatario = destinatario or imp.get("notify_email", "")
+    if imp.get("metodo_invio") == "web":
+        _invia_web(imp, subject, html, testo, destinatario)
+    else:
+        _invia_smtp(imp, subject, html, testo, destinatario)
+
+
+def _send(subject: str, html: str, testo: str, destinatario: str = "") -> None:
+    """Invio in background: non deve mai far cadere il sito."""
+    try:
+        invia_adesso(subject, html, testo, destinatario)
+        print(f"[mail] Notifica inviata a {destinatario or '(predefinito)'}")
     except Exception:
-        # Non deve mai bloccare il sito
         print("[mail] ERRORE invio notifica:")
         traceback.print_exc()
 
@@ -82,8 +165,9 @@ def _send(subject: str, html: str, testo: str, destinatario: str = "") -> None:
 def _send_async(subject: str, html: str, testo: str, destinatario: str = "") -> None:
     """Invia in background senza bloccare la risposta HTTP."""
     if not is_configured():
-        print("[mail] SMTP non configurato — notifica saltata.")
+        print("[mail] Notifiche email non configurate — saltata.")
         return
+    destinatario = destinatario or impostazioni.leggi("notify_email")
     if destinatario and "@" not in destinatario:
         print(f"[mail] Destinatario non valido, notifica saltata: {destinatario!r}")
         return
@@ -93,9 +177,8 @@ def _send_async(subject: str, html: str, testo: str, destinatario: str = "") -> 
 
 
 def _ticket_url(problem_id: int) -> str:
-    if APP_BASE_URL:
-        return f"{APP_BASE_URL}/problems/{problem_id}"
-    return ""
+    base = impostazioni.leggi("app_base_url").rstrip("/")
+    return f"{base}/problems/{problem_id}" if base else ""
 
 
 def _wrap(titolo: str, colore: str, righe: list[tuple[str, str]],

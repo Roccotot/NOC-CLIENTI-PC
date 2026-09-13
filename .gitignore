@@ -12,3 +12,6 @@ build/
 # Database (file Excel) — NON versionare: il PC del server ha i dati veri,
 # versionarli significa sovrascriverli a ogni deploy.
 data/
+
+# Impostazioni modificabili dalla pagina web (contengono password)
+data/impostazioni.json
