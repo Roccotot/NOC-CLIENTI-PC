@@ -650,7 +650,7 @@ def _spiega_errore_invio(e: Exception) -> str:
         return "il server rifiuta la connessione su quella porta: controlla il numero di porta."
     # I messaggi che scriviamo noi sono gia' in italiano: mostrali cosi' come sono
     if tipo in ("RuntimeError", "ValueError"):
-        return testo[:300]
+        return testo
     return f"{tipo}: {testo[:200]}"
 
 

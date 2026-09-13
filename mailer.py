@@ -158,9 +158,22 @@ def _invia_blat(imp, subject, html, testo, destinatario):
                                "molto probabilmente la porta e' bloccata.")
 
         if esito.returncode != 0:
-            dettaglio = (esito.stderr or esito.stdout or "").strip()[:400]
-            raise RuntimeError(f"blat ha restituito errore "
-                               f"(codice {esito.returncode}): {dettaglio}")
+            # Mostra tutto quello che blat ha detto: senza il suo output
+            # non c'e' modo di capire se il problema e' la porta, le
+            # credenziali o la cifratura richiesta dal server.
+            uscita = "\n".join(p for p in (esito.stdout, esito.stderr) if p and p.strip())
+            uscita = uscita.strip() or "(blat non ha scritto nulla)"
+
+            # Il comando eseguito, con la password oscurata
+            mostrato = list(comando)
+            if "-pw" in mostrato:
+                mostrato[mostrato.index("-pw") + 1] = "********"
+            riga_comando = " ".join(mostrato)
+
+            raise RuntimeError(
+                f"blat ha restituito errore (codice {esito.returncode}).\n\n"
+                f"Risposta di blat:\n{uscita[:900]}\n\n"
+                f"Comando eseguito:\n{riga_comando}")
     finally:
         try:
             os.remove(file_corpo)
