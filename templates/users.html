@@ -17,9 +17,6 @@
         <img src="{{ url_for('static', filename='logo_sigra.png') }}" alt="SigraFilm" height="44">
         <span class="nav-user-chip">{{ session.get("username") }}</span>
       </a>
-      {% if session.get("role") == "admin" %}
-      <a href="{{ url_for('noc_devices') }}" class="btn btn-outline-info btn-sm ms-2">🖥 Dispositivi</a>
-      {% endif %}
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Menu">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -30,7 +27,6 @@
           {% if session.get("role") == "admin" %}
             <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
             <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
-            <a href="{{ url_for('noc_devices') }}" class="btn btn-outline-light btn-sm">🖥 Dispositivi</a>
           {% endif %}
           <a href="{{ url_for('export_excel') }}?foglio=utenti" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
           {% if session.get("role") == "admin" %}
@@ -84,6 +80,49 @@
               <button type="submit" class="btn btn-primary noc-field w-100">+</button>
             </div>
           </div>
+
+          <!-- Cinema gestiti dall'utente -->
+          <div id="blocco-cinema" style="border-top:1px solid var(--border); padding-top:.85rem; margin-top:.35rem;">
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+              <span style="font-size:.82rem; font-weight:600; color:var(--text-2);">
+                Cinema che può gestire
+              </span>
+              <span style="font-size:.75rem; color:var(--text-3);">
+                (lascia vuoto per assegnarli dopo con 🎬)
+              </span>
+              <div class="ms-auto d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  onclick="segnaCinema(true)" style="font-size:.75rem;">Tutti</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                  onclick="segnaCinema(false)" style="font-size:.75rem;">Nessuno</button>
+              </div>
+            </div>
+
+            {% if all_cinemas %}
+              <div style="max-height:210px; overflow-y:auto; background:var(--bg-input);
+                          border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem;">
+                <div class="row g-1">
+                  {% for c in all_cinemas %}
+                    <div class="col-12 col-sm-6 col-lg-4">
+                      <div class="form-check" style="margin-bottom:.15rem;">
+                        <input class="form-check-input chk-cinema" type="checkbox"
+                          name="cinema_ids" value="{{ c.id }}" id="new-cin-{{ c.id }}">
+                        <label class="form-check-label" for="new-cin-{{ c.id }}"
+                          style="cursor:pointer; font-size:.84rem; color:var(--text-1);">
+                          {{ c.nome }}
+                          <span style="color:var(--text-3); font-size:.74rem;">· {{ c.città }}</span>
+                        </label>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% else %}
+              <div style="font-size:.8rem; color:var(--text-3);">
+                Nessun cinema in anagrafica. Aggiungili dalla pagina 🎬 Cinema.
+              </div>
+            {% endif %}
+          </div>
         </form>
       </div>
     </div>
@@ -105,6 +144,7 @@
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Telefono</th>
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Email</th>
                 <th style="cursor:pointer;">Ruolo</th>
+                <th class="sorttable_nosort d-none d-lg-table-cell">Cinema gestiti</th>
                 <th class="sorttable_nosort" style="cursor:default;">Azioni</th>
               </tr>
             </thead>
@@ -129,6 +169,20 @@
                     <span class="nbadge nbadge-admin">Admin</span>
                   {% else %}
                     <span class="nbadge nbadge-user">User</span>
+                  {% endif %}
+                </td>
+                <td class="d-none d-lg-table-cell" style="font-size:.78rem; max-width:260px;">
+                  {% if u.role == 'admin' %}
+                    <span style="color:var(--text-3);">tutti</span>
+                  {% else %}
+                    {% set ids = assegnati.get(u.id, []) %}
+                    {% if ids %}
+                      {% for cid in ids %}
+                        <span class="nbadge nbadge-user" style="margin:0 .15rem .15rem 0;">{{ nomi_cinema.get(cid, '?') }}</span>
+                      {% endfor %}
+                    {% else %}
+                      <span style="color:var(--text-3);">nessuno</span>
+                    {% endif %}
                   {% endif %}
                 </td>
                 <td class="text-nowrap">
@@ -171,6 +225,27 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sorttable@1.0.2/sorttable.min.js"></script>
+
+  <script>
+    // Seleziona / deseleziona tutti i cinema
+    function segnaCinema(stato) {
+      document.querySelectorAll('.chk-cinema').forEach(function (c) { c.checked = stato; });
+    }
+
+    // Gli admin vedono tutti i cinema: nasconde il blocco se si sceglie "Admin"
+    (function () {
+      var selRuolo = document.querySelector('select[name="role"]');
+      var blocco   = document.getElementById('blocco-cinema');
+      if (!selRuolo || !blocco) return;
+      function aggiorna() {
+        var isAdmin = selRuolo.value === 'admin';
+        blocco.style.display = isAdmin ? 'none' : '';
+        if (isAdmin) segnaCinema(false);
+      }
+      selRuolo.addEventListener('change', aggiorna);
+      aggiorna();
+    })();
+  </script>
 
 </body>
 </html>

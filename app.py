@@ -1,14 +1,37 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import os
 import io
 import re
-import socket
-import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+
+
+def _carica_env() -> None:
+    """Carica le variabili dal file .env (se presente) senza dipendenze esterne."""
+    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.isfile(percorso):
+        return
+    try:
+        with open(percorso, encoding="utf-8") as f:
+            for riga in f:
+                riga = riga.strip()
+                if not riga or riga.startswith("#") or "=" not in riga:
+                    continue
+                chiave, _, valore = riga.partition("=")
+                chiave = chiave.strip()
+                valore = valore.strip().strip('"').strip("'")
+                # Le variabili di sistema hanno la precedenza sul file
+                if chiave and chiave not in os.environ:
+                    os.environ[chiave] = valore
+    except Exception as e:
+        print(f"[env] Impossibile leggere .env: {e}")
+
+
+_carica_env()
+
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
@@ -19,6 +42,7 @@ except ImportError:
     _reportlab_ok = False
 
 from storage import store
+import mailer
 
 # --- CONFIGURAZIONE ---
 app = Flask(__name__)
@@ -194,6 +218,9 @@ def add_comment(problem_id):
     testo = request.form.get("testo", "").strip()
     if testo:
         store.add_comment(p.id, session["username"], session["role"], testo)
+        # Notifica solo se scrive un cliente (non un admin)
+        if session["role"] != "admin":
+            mailer.notifica_nuovo_messaggio(p, session["username"], testo)
     return redirect(url_for("ticket_detail", problem_id=p.id) + "#chat-bottom")
 
 
@@ -318,50 +345,6 @@ def update_ticket(problem_id):
     return redirect(url_for("ticket_detail", problem_id=p.id))
 
 
-# --- API PING (solo admin) ---
-@app.route("/api/ping/<ip>")
-def api_ping(ip):
-    if "user_id" not in session or session.get("role") != "admin":
-        return jsonify(ok=False), 403
-    if not re.match(r'^[\d.]+$', ip):
-        return jsonify(ok=False), 400
-    try:
-        result = subprocess.run(
-            ["ping", "-c", "1", "-W", "1", ip],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=3
-        )
-        return jsonify(ok=(result.returncode == 0))
-    except Exception:
-        return jsonify(ok=False)
-
-
-@app.route("/api/check-port/<ip>/<int:port>")
-def api_check_port(ip, port):
-    if "user_id" not in session or session.get("role") != "admin":
-        return jsonify(ok=False), 403
-    if not re.match(r'^[\d.]+$', ip):
-        return jsonify(ok=False), 400
-    try:
-        s = socket.create_connection((ip, port), timeout=3)
-        s.close()
-        return jsonify(ok=True)
-    except Exception:
-        return jsonify(ok=False)
-
-
-# --- NOC DISPOSITIVI (solo admin) ---
-@app.route("/dispositivi")
-def noc_devices():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    if session.get("role") != "admin":
-        flash("Accesso riservato agli amministratori.", "danger")
-        return redirect(url_for("dashboard"))
-    return render_template("noc_devices.html")
-
-
 # --- ARCHIVIO TICKET CHIUSI ---
 @app.route("/closed")
 def closed_tickets():
@@ -389,9 +372,12 @@ def add_problem():
         return redirect(url_for("dashboard"))
     cinema_obj = store.get_cinema_by_nome(cinema_nome)
     città = cinema_obj.città if cinema_obj else ""
-    store.create_problem(cinema=cinema_nome, città=città, sala=sala,
-                         tipo=tipo, urgenza=urgenza, stato=stato,
-                         autore=session["username"])
+    nuovo = store.create_problem(cinema=cinema_nome, città=città, sala=sala,
+                                 tipo=tipo, urgenza=urgenza, stato=stato,
+                                 autore=session["username"])
+    # Notifica solo se il ticket è aperto da un cliente (non da un admin)
+    if session["role"] != "admin":
+        mailer.notifica_nuovo_ticket(nuovo)
     flash("Problema aggiunto con successo.", "success")
     return redirect(url_for("dashboard"))
 
@@ -466,12 +452,23 @@ def admin_users():
         if store.get_user_by_username(username):
             flash("Username già in uso.", "warning")
             return redirect(url_for("admin_users"))
-        store.create_user(username=username, password_hash=generate_password_hash(password),
-                          password_plain=password, role=role, telefono=telefono, email=email)
-        flash("Utente creato con successo.", "success")
+        nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
+                                  password_plain=password, role=role, telefono=telefono, email=email)
+        # Cinema selezionati nel form (solo per utenti non admin: gli admin vedono tutto)
+        cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
+        if role != "admin" and cinema_ids:
+            store.set_user_cinemas(nuovo.id, cinema_ids)
+            flash(f"Utente creato con {len(cinema_ids)} cinema assegnati.", "success")
+        else:
+            flash("Utente creato con successo.", "success")
         return redirect(url_for("admin_users"))
     users_list = sorted(store.get_all_users(), key=lambda u: u.id)
-    return render_template("users.html", users=users_list)
+    all_cinemas = store.get_all_cinemas(order_by="città_nome")
+    # Cinema già assegnati, per mostrarli nella tabella
+    assegnati = {u.id: store.get_cinema_ids_for_user(u.id) for u in users_list}
+    nomi_cinema = {c.id: c.nome for c in all_cinemas}
+    return render_template("users.html", users=users_list, all_cinemas=all_cinemas,
+                           assegnati=assegnati, nomi_cinema=nomi_cinema)
 
 
 # --- DETTAGLIO UTENTE ---
