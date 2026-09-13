@@ -119,6 +119,7 @@
         <div class="card-title">Segnala problema</div>
         {% if cinemas %}
         <form method="post" action="{{ url_for('add_problem') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="row g-2 align-items-end">
             <div class="col-6 col-md">
               <label class="form-label mb-1">Città</label>
@@ -300,6 +301,7 @@
                   <form method="post"
                     action="{{ url_for('delete_problem', problem_id=p.id) }}"
                     class="d-inline d-none d-md-inline">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-secondary"
                       onclick="return confirm('Archiviare questo ticket?')">🗄</button>
                   </form>

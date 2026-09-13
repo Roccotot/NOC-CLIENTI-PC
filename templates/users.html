@@ -57,6 +57,7 @@
       <div class="card-body">
         <div class="card-title">Aggiungi utente</div>
         <form method="post" action="{{ url_for('admin_users') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="row g-2 mb-2">
             <div class="col-12 col-md-3">
               <input type="text" name="username" class="form-control noc-field" placeholder="Username" required autocomplete="off">
@@ -140,7 +141,6 @@
               <tr>
                 <th class="d-none d-md-table-cell" style="cursor:pointer;">ID</th>
                 <th style="cursor:pointer;">Username</th>
-                <th class="d-none d-md-table-cell sorttable_nosort">Password</th>
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Telefono</th>
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Email</th>
                 <th style="cursor:pointer;">Ruolo</th>
@@ -161,7 +161,6 @@
                     {% if u.email %}{{ u.email }}{% endif %}
                   </div>
                 </td>
-                <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem; font-family:monospace;">{{ u.password_plain or '—' }}</td>
                 <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
                 <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
                 <td>
@@ -194,6 +193,7 @@
                   <form method="post"
                     action="{{ url_for('reset_password', user_id=u.id) }}"
                     class="d-none d-md-inline">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <input type="password" name="new_password"
                       placeholder="Nuova password" minlength="8" required
                       class="form-control d-inline" style="width:130px; vertical-align:middle; margin-right:.35rem;">
@@ -202,6 +202,7 @@
                   <form method="post"
                     action="{{ url_for('delete_user', user_id=u.id) }}"
                     class="d-inline" style="margin-left:.25rem;">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-danger"
                       onclick="return confirm('Eliminare questo utente?')">✕</button>
                   </form>

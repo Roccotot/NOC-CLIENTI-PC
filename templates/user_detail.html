@@ -79,6 +79,7 @@
       </div>
       <div class="card-body">
         <form method="post" action="{{ url_for('reset_password', user_id=u.id) }}" class="d-flex gap-2 flex-wrap">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <input type="password" name="new_password" placeholder="Nuova password (min 8 caratteri)"
             minlength="8" required class="form-control noc-field" style="max-width:280px;">
           <button type="submit" class="btn btn-warning">Aggiorna password</button>
@@ -101,6 +102,7 @@
         </p>
 
         <form method="post" action="{{ url_for('user_detail', user_id=u.id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 
           <!-- Seleziona/deseleziona tutto -->
           <div class="d-flex gap-2 mb-3">

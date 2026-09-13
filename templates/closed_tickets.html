@@ -118,6 +118,7 @@
                   <form method="post"
                     action="{{ url_for('destroy_problem', problem_id=p.id) }}"
                     class="d-inline">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-danger"
                       onclick="return confirm('Eliminare definitivamente il ticket #{{ p.id }}?')">🗑</button>
                   </form>

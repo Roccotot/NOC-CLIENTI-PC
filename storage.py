@@ -37,7 +37,6 @@ class User:
     id: int
     username: str
     password_hash: str
-    password_plain: str = ""
     role: str = "user"
     telefono: str = ""
     email: str = ""
@@ -205,7 +204,7 @@ class ExcelStore:
     """
 
     HEADERS = {
-        "utenti.xlsx":           ["id", "username", "password_hash", "password_plain", "role", "telefono", "email"],
+        "utenti.xlsx":           ["id", "username", "password_hash", "role", "telefono", "email"],
         "cinema.xlsx":           ["id", "nome", "città", "num_sale", "telefono", "indirizzo", "lat", "lng"],
         "cinema_eliminati.xlsx": ["id", "nome"],
         "tickets.xlsx":          ["id", "cinema", "città", "sala", "tipo", "urgenza", "stato",
@@ -237,12 +236,12 @@ class ExcelStore:
     def _row_to_user(self, r) -> User:
         return User(
             id=_i(r[0]), username=_s(r[1]), password_hash=_s(r[2]),
-            password_plain=_s(r[3]), role=_s(r[4]) or "user",
-            telefono=_s(r[5]), email=_s(r[6]),
+            role=_s(r[3]) or "user",
+            telefono=_s(r[4]), email=_s(r[5]),
         )
 
     def _user_to_row(self, u: User) -> tuple:
-        return (u.id, u.username, u.password_hash, u.password_plain,
+        return (u.id, u.username, u.password_hash,
                 u.role, u.telefono, u.email)
 
     def get_all_users(self) -> List[User]:
@@ -263,13 +262,13 @@ class ExcelStore:
                     return self._row_to_user(r)
         return None
 
-    def create_user(self, username: str, password_hash: str, password_plain: str = "",
+    def create_user(self, username: str, password_hash: str,
                     role: str = "user", telefono: str = "", email: str = "") -> User:
         with _lock:
             rows = self._rows("utenti.xlsx")
             new_id = _next_id(rows)
             u = User(id=new_id, username=username, password_hash=password_hash,
-                     password_plain=password_plain, role=role, telefono=telefono, email=email)
+                     role=role, telefono=telefono, email=email)
             rows.append(self._user_to_row(u))
             self._overwrite("utenti.xlsx", rows)
             return u
@@ -532,6 +531,39 @@ class ExcelStore:
 
     # ── SEED ──────────────────────────────────────────
 
+    def _migra_utenti_senza_password_chiara(self):
+        """
+        Rimuove la vecchia colonna 'password_plain' da utenti.xlsx.
+
+        Le password erano salvate anche in chiaro accanto all'hash: chiunque
+        aprisse il file (o la pagina Utenti) le vedeva tutte. La colonna viene
+        eliminata e il suo contenuto cancellato definitivamente dal disco.
+        L'hash resta, quindi nessuno deve rifare la password.
+        """
+        percorso = _path("utenti.xlsx")
+        if not os.path.exists(percorso):
+            return
+        try:
+            wb = openpyxl.load_workbook(percorso)
+            ws = wb.active
+            intestazione = [_s(c) for c in next(ws.iter_rows(values_only=True), ())]
+        except Exception as e:
+            print(f"[migrazione] utenti.xlsx non leggibile: {e}")
+            return
+
+        if "password_plain" not in intestazione:
+            return  # già migrato
+
+        idx = intestazione.index("password_plain")
+        righe = []
+        for r in list(ws.iter_rows(min_row=2, values_only=True)):
+            if not r or r[0] is None:
+                continue
+            righe.append(tuple(v for i, v in enumerate(r) if i != idx))
+
+        self._overwrite("utenti.xlsx", righe)
+        print(f"[migrazione] Rimosse {len(righe)} password in chiaro da utenti.xlsx")
+
     def seed(self):
         """Inizializza i file e inserisce dati di default se mancanti."""
         _ensure_dir()
@@ -540,15 +572,18 @@ class ExcelStore:
             if not os.path.exists(_path(fname)):
                 _load_wb(fname, headers)
 
+        # Migrazioni sui file già esistenti (prima di qualsiasi lettura)
+        self._migra_utenti_senza_password_chiara()
+
         # Admin di default
         if not self.get_user_by_username("admin"):
             self.create_user(
                 username="admin",
                 password_hash=generate_password_hash("admin1234"),
-                password_plain="admin1234",
                 role="admin",
             )
             print("✅ Utente admin creato (admin / admin1234)")
+            print("   ⚠  Cambia subito questa password dalla pagina Utenti.")
 
         # Seed cinema
         existing_nomi = self.get_all_cinema_nomi()

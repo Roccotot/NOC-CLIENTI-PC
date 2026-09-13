@@ -58,6 +58,7 @@
         </p>
 
         <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label" style="color:var(--text-2);">File Excel (.xlsx)</label>
             <input type="file" name="file" accept=".xlsx" class="form-control" required>

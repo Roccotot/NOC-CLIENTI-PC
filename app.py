@@ -5,6 +5,7 @@ from datetime import datetime, date
 import os
 import io
 import re
+import secrets
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -44,9 +45,56 @@ except ImportError:
 from storage import store
 import mailer
 
+def _chiave_segreta() -> str:
+    """
+    Chiave usata per firmare i cookie di sessione.
+
+    Ordine: variabile d'ambiente SECRET_KEY -> file .secret_key -> generata.
+    Una chiave prevedibile permetterebbe di falsificare i cookie ed entrare
+    come amministratore, quindi non esiste più un valore di default.
+    La chiave viene salvata su file così le sessioni sopravvivono ai riavvii.
+    """
+    chiave = os.environ.get("SECRET_KEY", "").strip()
+    if chiave:
+        return chiave
+
+    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
+    if os.path.isfile(percorso):
+        try:
+            with open(percorso, encoding="utf-8") as f:
+                chiave = f.read().strip()
+            if chiave:
+                return chiave
+        except Exception as e:
+            print(f"[chiave] Impossibile leggere .secret_key: {e}")
+
+    chiave = secrets.token_hex(32)
+    try:
+        with open(percorso, "w", encoding="utf-8") as f:
+            f.write(chiave)
+        try:
+            os.chmod(percorso, 0o600)  # su Windows viene ignorato
+        except OSError:
+            pass
+        print("[chiave] Generata una nuova SECRET_KEY in .secret_key")
+    except Exception as e:
+        print(f"[chiave] ATTENZIONE: chiave solo in memoria, i login "
+              f"si perderanno a ogni riavvio ({e})")
+    return chiave
+
+
 # --- CONFIGURAZIONE ---
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "devsecret-change-me")
+app.secret_key = _chiave_segreta()
+
+# Cookie di sessione più difficili da rubare
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,   # non leggibile da JavaScript
+    SESSION_COOKIE_SAMESITE="Lax",  # non inviato da siti terzi
+    # Attivare solo quando il sito sarà servito in HTTPS, altrimenti il
+    # cookie non viene inviato e il login smette di funzionare.
+    SESSION_COOKIE_SECURE=os.environ.get("HTTPS_ATTIVO", "").strip() in ("1", "true", "yes"),
+)
 ALLEGATI_FOLDER = os.path.join(os.path.dirname(__file__), "allegati")
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp",
                       "doc", "docx", "xls", "xlsx", "txt", "zip", "mp4", "mov", "avi"}
@@ -70,6 +118,49 @@ def _get_allegati(cinema_nome: str, ticket_id: int) -> list[dict]:
             files.append({"filename": fname, "original": original,
                           "cinema_folder": _cinema_folder(cinema_nome)})
     return files
+
+# ── PROTEZIONE CSRF ────────────────────────────────────────────
+# Senza questa protezione, una pagina malevola aperta da un utente già
+# loggato può inviare form al sito a sua insaputa (cancellare ticket,
+# eliminare utenti...). Ogni form include un gettone segreto legato alla
+# sessione: le richieste che non lo portano vengono rifiutate.
+
+def _gettone_csrf() -> str:
+    """Gettone della sessione corrente, creato al primo utilizzo."""
+    if "_csrf" not in session:
+        session["_csrf"] = secrets.token_urlsafe(32)
+    return session["_csrf"]
+
+
+@app.context_processor
+def _inietta_csrf():
+    """Rende disponibile csrf_token() in tutti i template."""
+    return {"csrf_token": _gettone_csrf}
+
+
+@app.before_request
+def _verifica_csrf():
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    atteso = session.get("_csrf")
+    inviato = request.form.get("_csrf") or request.headers.get("X-CSRF-Token", "")
+    if not atteso or not secrets.compare_digest(str(atteso), str(inviato)):
+        app.logger.warning("Richiesta rifiutata per gettone CSRF mancante o errato: %s",
+                           request.path)
+        abort(400, description="Sessione scaduta o richiesta non valida. "
+                               "Ricarica la pagina e riprova.")
+    return None
+
+
+@app.errorhandler(400)
+def _errore_400(e):
+    """Messaggio comprensibile al posto della pagina di errore grezza."""
+    if "user_id" in session:
+        flash("Sessione scaduta o richiesta non valida. Riprova.", "warning")
+        return redirect(url_for("dashboard"))
+    flash("Sessione scaduta. Accedi di nuovo.", "warning")
+    return redirect(url_for("login"))
+
 
 # Inizializza file Excel e dati di default
 store.seed()
@@ -101,18 +192,11 @@ def login():
     return render_template("login.html")
 
 
-# --- RESET ADMIN (emergenza) ---
-@app.route("/reset-admin-password-7x9k")
-def reset_admin_password():
-    u = store.get_user_by_username("admin")
-    if u:
-        u.password_hash = generate_password_hash("admin1234")
-        u.password_plain = "admin1234"
-        u.role = "admin"
-        store.update_user(u)
-        return "Password admin resettata a 'admin1234'."
-    store.create_user("admin", generate_password_hash("admin1234"), "admin1234", "admin")
-    return "Utente admin ricreato con password 'admin1234'."
+# NOTA: la vecchia route "/reset-admin-password-7x9k" è stata rimossa.
+# Permetteva a CHIUNQUE, senza autenticazione, di reimpostare la password
+# admin a un valore noto e prendere il controllo del sito.
+# Per un reset d'emergenza usare da riga di comando sul PC del server:
+#     python reset_admin.py
 
 
 # --- LOGOUT ---
@@ -453,7 +537,7 @@ def admin_users():
             flash("Username già in uso.", "warning")
             return redirect(url_for("admin_users"))
         nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
-                                  password_plain=password, role=role, telefono=telefono, email=email)
+                                  role=role, telefono=telefono, email=email)
         # Cinema selezionati nel form (solo per utenti non admin: gli admin vedono tutto)
         cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
         if role != "admin" and cinema_ids:
@@ -501,8 +585,7 @@ def reset_password(user_id):
     u = store.get_user_by_id(user_id)
     if not u:
         abort(404)
-    u.password_hash  = generate_password_hash(new_password)
-    u.password_plain = new_password
+    u.password_hash = generate_password_hash(new_password)
     store.update_user(u)
     flash(f"Password di '{u.username}' aggiornata con successo.", "success")
     return redirect(url_for("admin_users"))
