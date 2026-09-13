@@ -587,14 +587,16 @@ def impostazioni_notifiche():
             "smtp_password": request.form.get("smtp_password", ""),
             "smtp_from":     request.form.get("smtp_from", ""),
             "blat_path":     request.form.get("blat_path", ""),
-            "api_key":       request.form.get("api_key", ""),
             "notify_email":  request.form.get("notify_email", ""),
             "app_base_url":  request.form.get("app_base_url", ""),
         })
 
         if azione == "prova":
-            if not impostazioni.configurato():
-                flash("Compila prima i campi obbligatori, poi riprova.", "warning")
+            mancanti = impostazioni.campi_mancanti()
+            if mancanti:
+                elenco = ", ".join(f"«{m}»" for m in mancanti)
+                flash(f"Manca ancora: {elenco}. "
+                      f"Compila e riprova.", "warning")
                 return redirect(url_for("impostazioni_notifiche"))
             destinatario = impostazioni.leggi("notify_email")
             try:
@@ -627,8 +629,8 @@ def _spiega_errore_invio(e: Exception) -> str:
     if "timed out" in testo.lower() or tipo == "timeout":
         return ("il server non risponde (timeout). Di solito significa che la "
                 "porta è bloccata dall'antivirus, dal firewall di Windows o "
-                "dal router. Prova il metodo «Invio via web», che usa la "
-                "stessa porta del browser.")
+                "dal router. Prova a disattivare la protezione posta "
+                "dell'antivirus, oppure la porta 25 invece della 465.")
     if "authentication" in testo.lower() or "535" in testo or "AUTH" in testo:
         return ("utente o password rifiutati dal server di posta. Se la casella "
                 "ha la verifica in due passaggi serve una «password per le app».")

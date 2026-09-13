@@ -4,7 +4,7 @@ Invio notifiche email per nuovi ticket e nuovi messaggi dei clienti.
 Le impostazioni si leggono da impostazioni.py, quindi si cambiano dalla
 pagina web del portale senza riavviare il sito.
 
-Tre modi di invio:
+Due modi di invio:
 
   "smtp" — collegamento diretto al server di posta (porta 465/587).
            E' il modo classico, ma molte reti bloccano quelle porte.
@@ -14,26 +14,19 @@ Tre modi di invio:
            ma lascia passare altri eseguibili, oppure quando funziona la
            porta 25 e non la 465.
 
-  "web"  — invio tramite il servizio Brevo, che espone un'interfaccia web
-           sulla porta 443: funziona anche dove l'SMTP e' bloccato.
-
 Se manca la configurazione le notifiche vengono saltate e il sito continua
 a funzionare normalmente.
 """
-import json
 import os
 import ssl
 import smtplib
 import threading
 import traceback
-import urllib.error
-import urllib.request
 from email.message import EmailMessage
 from email.utils import formataddr
 
 import impostazioni
 
-URL_BREVO = "https://api.brevo.com/v3/smtp/email"
 TIMEOUT = 20
 
 FROM_NAME = "SigraFilm NOC"
@@ -79,30 +72,6 @@ def _invia_smtp(imp, subject, html, testo, destinatario):
             if password:
                 s.login(utente, password)
             s.send_message(msg)
-
-
-def _invia_web(imp, subject, html, testo, destinatario):
-    """Invio tramite Brevo: usa la porta 443, quindi passa dove l'SMTP no."""
-    payload = {
-        "sender": {"email": _mittente(imp), "name": FROM_NAME},
-        "to": [{"email": destinatario}],
-        "subject": subject,
-        "htmlContent": html,
-        "textContent": testo,
-    }
-    richiesta = urllib.request.Request(
-        URL_BREVO,
-        data=json.dumps(payload).encode(),
-        headers={"api-key": imp.get("api_key", ""),
-                 "content-type": "application/json",
-                 "accept": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(richiesta, timeout=TIMEOUT) as r:
-            r.read()
-    except urllib.error.HTTPError as e:
-        dettaglio = e.read().decode(errors="replace")[:300]
-        raise RuntimeError(f"Brevo ha rifiutato l'invio (HTTP {e.code}): {dettaglio}")
 
 
 def _invia_blat(imp, subject, html, testo, destinatario):
@@ -189,10 +158,7 @@ def invia_adesso(subject: str, html: str, testo: str, destinatario: str = "") ->
     """
     imp = impostazioni.tutte()
     destinatario = destinatario or imp.get("notify_email", "")
-    metodo = imp.get("metodo_invio")
-    if metodo == "web":
-        _invia_web(imp, subject, html, testo, destinatario)
-    elif metodo == "blat":
+    if imp.get("metodo_invio") == "blat":
         _invia_blat(imp, subject, html, testo, destinatario)
     else:
         _invia_smtp(imp, subject, html, testo, destinatario)
