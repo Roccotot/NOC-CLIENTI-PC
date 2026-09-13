@@ -56,8 +56,7 @@
           <!-- Dove arrivano -->
           <label class="form-label">Manda le notifiche a</label>
           <input type="email" name="notify_email" class="form-control mb-4"
-                 value="{{ imp.notify_email }}" placeholder="assistenza@sigrafilm.it"
-                 autocomplete="off" required>
+                 value="{{ imp.notify_email }}" autocomplete="off" required>
 
           <!-- Come le manda -->
           <label class="form-label">Come le manda</label>
@@ -87,12 +86,12 @@
               <div class="col-12 col-sm-6">
                 <label class="form-label">Server</label>
                 <input type="text" name="smtp_host" class="form-control"
-                       value="{{ imp.smtp_host }}" placeholder="mail.mclink.it" autocomplete="off">
+                       value="{{ imp.smtp_host }}" autocomplete="off" required>
               </div>
               <div class="col-6 col-sm-3">
                 <label class="form-label">Porta</label>
                 <input type="number" name="smtp_port" class="form-control"
-                       value="{{ imp.smtp_port }}" placeholder="465">
+                       value="{{ imp.smtp_port }}" required>
               </div>
               <div class="col-6 col-sm-3 d-flex align-items-end">
                 <div class="form-check mb-2">
@@ -105,7 +104,7 @@
               <div class="col-12 col-sm-6">
                 <label class="form-label">Casella</label>
                 <input type="text" name="smtp_user" class="form-control"
-                       value="{{ imp.smtp_user }}" placeholder="assistenza@sigrafilm.it" autocomplete="off">
+                       value="{{ imp.smtp_user }}" autocomplete="off" required>
               </div>
               <div class="col-12 col-sm-6">
                 <label class="form-label">Password</label>
@@ -137,7 +136,7 @@
         <div class="card-body">
           <label class="form-label">Indirizzo del sito</label>
           <input type="text" name="app_base_url" class="form-control"
-                 value="{{ imp.app_base_url }}" placeholder="http://188.8.192.138:5000" autocomplete="off">
+                 value="{{ imp.app_base_url }}" autocomplete="off">
           <div style="font-size:.78rem; color:var(--text-3); margin-top:.4rem;">
             Usato per il pulsante «Apri il ticket» dentro le email.
           </div>

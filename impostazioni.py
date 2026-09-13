@@ -37,12 +37,19 @@ DA_AMBIENTE = {
     "app_base_url":   "APP_BASE_URL",
 }
 
+# Valori di partenza, gia' compilati nella pagina.
+# Devono essere valori VERI e non semplici suggerimenti grigi: un campo che
+# sembra pieno ma e' vuoto fa credere di aver configurato tutto, e l'invio
+# fallisce senza che si capisca il perche'.
 PREDEFINITI = {
     "metodo_invio":  "smtp",
     "blat_path":     "blat.exe",
+    "smtp_host":     "mail.mclink.it",
     "smtp_port":     "465",
     "smtp_ssl":      "1",
+    "smtp_user":     "assistenza@sigrafilm.it",
     "notify_email":  "assistenza@sigrafilm.it",
+    "app_base_url":  "http://188.8.192.138:5000",
 }
 
 
