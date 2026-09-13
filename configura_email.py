@@ -99,14 +99,27 @@ def main() -> int:
     nome_gestore, host, porta, ssl_diretto = scegli_gestore()
     print(f"\n→ {nome_gestore}: {host}:{porta} ({'SSL' if ssl_diretto else 'STARTTLS'})\n")
 
-    utente = chiedi("Indirizzo della casella", "assistenza@sigrafilm.it")
-    password = getpass.getpass("Password della casella (non viene mostrata): ")
+    print("Ora servono i dati della casella email da cui partiranno le notifiche.")
+    print("E' la stessa casella con cui accedi alla webmail.\n")
+
+    utente = chiedi("Email da cui inviare (es. assistenza@sigrafilm.it)",
+                    "assistenza@sigrafilm.it")
+    if "@" not in utente:
+        print("\nERRORE: serve un indirizzo email completo, con la chiocciola.")
+        print(f"Hai scritto: {utente}")
+        return 1
+
+    print("\nPassword di quella casella — mentre digiti non vedrai nulla")
+    print("sullo schermo: e' normale, sta scrivendo lo stesso.")
+    password = getpass.getpass("Password: ")
     if not password:
         print("\nERRORE: la password è obbligatoria.")
         return 1
 
-    destinatario = chiedi("Dove ricevere le notifiche", utente)
-    base_url = chiedi("Indirizzo pubblico del sito", "http://188.8.192.138:5000")
+    print()
+    destinatario = chiedi("Email a cui RICEVERE le notifiche dei ticket", utente)
+    base_url = chiedi("Indirizzo web del sito (per i link nelle email)",
+                      "http://188.8.192.138:5000")
 
     # Prova l'invio PRIMA di scrivere il file, così non si salva
     # una configurazione che non funziona.
