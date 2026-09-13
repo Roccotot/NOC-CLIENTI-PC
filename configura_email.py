@@ -9,7 +9,6 @@ Chiede i dati della casella (la password non viene mai mostrata a schermo
 né salvata nella cronologia dei comandi), scrive il file .env e invia
 subito una mail di prova per verificare che tutto funzioni.
 """
-import getpass
 import os
 import smtplib
 import ssl
@@ -27,7 +26,8 @@ GESTORI = {
     "3": ("Google Workspace / Gmail", "smtp.gmail.com",     587, False),
     "4": ("Microsoft 365 / Outlook",  "smtp.office365.com", 587, False),
     "5": ("MCLink",                   "smtp.mclink.it",     465, True),
-    "6": ("Altro (inserisco a mano)", None,                 None, None),
+    "6": ("MCLink su porta 587",      "smtp.mclink.it",     587, False),
+    "7": ("Altro (inserisco a mano)", None,                 None, None),
 }
 
 
@@ -99,14 +99,28 @@ def main() -> int:
     nome_gestore, host, porta, ssl_diretto = scegli_gestore()
     print(f"\n→ {nome_gestore}: {host}:{porta} ({'SSL' if ssl_diretto else 'STARTTLS'})\n")
 
-    utente = chiedi("Indirizzo della casella", "assistenza@sigrafilm.it")
-    password = getpass.getpass("Password della casella (non viene mostrata): ")
+    print("Ora servono i dati della casella email da cui partiranno le notifiche.")
+    print("E' la stessa casella con cui accedi alla webmail.\n")
+
+    utente = chiedi("Email da cui inviare (es. assistenza@sigrafilm.it)",
+                    "assistenza@sigrafilm.it")
+    if "@" not in utente:
+        print("\nERRORE: serve un indirizzo email completo, con la chiocciola.")
+        print(f"Hai scritto: {utente}")
+        return 1
+
+    print("\nPassword di quella casella.")
+    print("(Viene mostrata mentre la digiti, cosi' controlli di non sbagliare:")
+    print(" assicurati che nessuno stia guardando lo schermo.)")
+    password = input("Password: ").strip()
     if not password:
         print("\nERRORE: la password è obbligatoria.")
         return 1
 
-    destinatario = chiedi("Dove ricevere le notifiche", utente)
-    base_url = chiedi("Indirizzo pubblico del sito", "http://188.8.192.138:5000")
+    print()
+    destinatario = chiedi("Email a cui RICEVERE le notifiche dei ticket", utente)
+    base_url = chiedi("Indirizzo web del sito (per i link nelle email)",
+                      "http://188.8.192.138:5000")
 
     # Prova l'invio PRIMA di scrivere il file, così non si salva
     # una configurazione che non funziona.
