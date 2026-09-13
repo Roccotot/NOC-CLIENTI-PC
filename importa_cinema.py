@@ -26,8 +26,16 @@ FONTI = [
 ELENCHI = ["RAW", "RAW_ESTIVI", "RAW_NOVPN"]
 TIMEOUT = 30
 
-# parole generiche che non aiutano a riconoscere un cinema
-RUMORE = {"cinema", "teatro", "multisala", "arena", "estiva", "il", "la", "lo"}
+# Parole generiche da ignorare nel confronto dei nomi: servono a
+# riconoscere lo stesso locale quando cambia la dicitura, per esempio
+# "Cinema Excelsior" / "Excelsior" oppure "Museo Pecci" / "Centro Pecci".
+#
+# "arena" ed "estiva" NON vanno qui: distinguono l'arena estiva dal cinema
+# al chiuso della stessa citta' (a Arezzo esistono sia "Eden" sia "Arena
+# Estiva Eden", e sono due locali diversi).
+RUMORE = {"cinema", "teatro", "multisala", "sala",
+          "centro", "museo", "circolo", "spazio", "casa",
+          "nuovo", "nuova", "il", "la", "lo"}
 
 
 def normalizza(testo) -> str:
