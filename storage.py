@@ -701,58 +701,11 @@ class ExcelStore:
             print("✅ Utente admin creato (admin / admin1234)")
             print("   ⚠  Cambia subito questa password dalla pagina Utenti.")
 
-        # Seed cinema
-        existing_nomi = self.get_all_cinema_nomi()
-        deleted_nomi = self.get_deleted_cinema_nomi()
-        _cinemas_seed = [
-            {"nome": "Cinema Chiusi",                        "città": "Chiusi",                   "num_sale": 6, "telefono": "0578 275077", "indirizzo": "Loc. Querce al Pino, SP 146, 53043 Chiusi SI",         "lat": 43.0025, "lng": 11.9481},
-            {"nome": "Cinema Empoli",                        "città": "Empoli",                   "num_sale": 3, "telefono": "0571 72023",  "indirizzo": "Via Cosimo Ridolfi 75, 50053 Empoli FI",              "lat": 43.7208, "lng": 10.9478},
-            {"nome": "Cinema Firenze",                       "città": "Firenze",                  "num_sale": 1, "telefono": "055 483607",  "indirizzo": "Via G. Romagnosi 46, 50134 Firenze FI",               "lat": 43.7835, "lng": 11.2427},
-            {"nome": "Cinema Odeon",                         "città": "Firenze",                  "num_sale": 1, "telefono": "055 214068",  "indirizzo": "Piazza degli Strozzi 2, 50123 Firenze FI",            "lat": 43.7711, "lng": 11.2519},
-            {"nome": "Cinema Grosseto",                      "città": "Grosseto",                 "num_sale": 4, "telefono": "0564 27069",  "indirizzo": "Via Goffredo Mameli 24, 58100 Grosseto GR",           "lat": 42.7641, "lng": 11.1086},
-            {"nome": "Cinema Massa",                         "città": "Massa",                    "num_sale": 7, "telefono": "0585 791105", "indirizzo": "Via Dorsale 11, 54100 Massa MS",                      "lat": 44.0181, "lng": 10.1327},
-            {"nome": "Cinema Montecatini",                   "città": "Montecatini Terme",        "num_sale": 4, "telefono": "0572 78510",  "indirizzo": "Piazza Massimo D'Azeglio 5, 51016 Montecatini Terme PT", "lat": 43.8849, "lng": 10.7722},
-            {"nome": "Cinema Pisa",                          "città": "Pisa",                     "num_sale": 3, "telefono": "050 5552261", "indirizzo": "Via Piave 47, 56123 Pisa PI",                         "lat": 43.7155, "lng": 10.3986},
-            {"nome": "Cinecity Pisa",                        "città": "Pisa",                     "num_sale": 5, "telefono": "392 323 3535","indirizzo": "Piazza della Stazione 16, 56125 Pisa PI",             "lat": 43.7090, "lng": 10.3972},
-            {"nome": "Cinema Sansepolcro",                   "città": "Sansepolcro",              "num_sale": 1, "telefono": "0575 733433", "indirizzo": "Via XX Settembre 156, 52037 Sansepolcro AR",           "lat": 43.5695, "lng": 12.1406},
-            {"nome": "ELIA ANTICA MULTISALA",                "città": "Grosseto",                 "num_sale": 4, "telefono": "0564 644987", "indirizzo": "Via Aurelia Antica 46, 58100 Grosseto GR",            "lat": 42.7548, "lng": 11.0931},
-            {"nome": "Cinema Scuderie Granducali Seravezza", "città": "Seravezza",                "num_sale": 1, "telefono": "0584 840409", "indirizzo": "Viale Leonetto Amedei 124, 55047 Seravezza LU",       "lat": 43.9962, "lng": 10.2321},
-            {"nome": "Teatro Cinema Giotto",                 "città": "Borgo San Lorenzo",        "num_sale": 1, "telefono": "055 845 9658","indirizzo": "Corso Giacomo Matteotti 151, 50032 Borgo San Lorenzo FI", "lat": 43.9548, "lng": 11.3855},
-            {"nome": "Cinema Metropolitan",                  "città": "Piombino",                 "num_sale": 1, "telefono": "0565 30385",  "indirizzo": "Piazza Cappelletti 2, 57025 Piombino LI",             "lat": 42.9225, "lng": 10.5320},
-            {"nome": "Cinema Multisala Excelsior",           "città": "Montecatini Terme",        "num_sale": 2, "telefono": "0572 904289", "indirizzo": "Viale Giuseppe Verdi 66, 51016 Montecatini Terme PT", "lat": 43.8825, "lng": 10.7740},
-            {"nome": "Cinema Teatro Scipione Ammirato",      "città": "Montaione",                "num_sale": 1, "telefono": "0571 61517",  "indirizzo": "Piazza Gramsci 2, 50050 Montaione FI",                "lat": 43.5595, "lng": 10.9126},
-            {"nome": "Multisala Isola Verde",                "città": "Pisa",                     "num_sale": 3, "telefono": "050 973676",  "indirizzo": "Via Vittorio Frascani, 56124 Pisa PI",                "lat": 43.7024, "lng": 10.3912},
-            {"nome": "Cinema Sala Esse",                     "città": "Firenze",                  "num_sale": 1, "telefono": "055 666643",  "indirizzo": "Via del Ghirlandaio 38, 50121 Firenze FI",            "lat": 43.7697, "lng": 11.2763},
-            {"nome": "Multisala Goldoni",                    "città": "Viareggio",                "num_sale": 2, "telefono": "0584 49832",  "indirizzo": "Via San Francesco 124, 55049 Viareggio LU",           "lat": 43.8682, "lng": 10.2547},
-            {"nome": "Cinema Multisala Il Portico",          "città": "Firenze",                  "num_sale": 2, "telefono": "055 669930",  "indirizzo": "Via Capo di Mondo 66, 50136 Firenze FI",              "lat": 43.7698, "lng": 11.2919},
-            {"nome": "Cinema Teatro Everest Galluzzo",       "città": "Firenze",                  "num_sale": 1, "telefono": "055 232 1754","indirizzo": "Via Volterrana 4, 50124 Firenze FI",                  "lat": 43.7388, "lng": 11.2413},
-            {"nome": "Spazio Alfieri Cinema Teatro Bistrò",  "città": "Firenze",                  "num_sale": 1, "telefono": "055 5320840", "indirizzo": "Via dell'Ulivo 8, 50122 Firenze FI",                  "lat": 43.7703, "lng": 11.2639},
-            {"nome": "Cinema Teatro Multisala Imperiale",    "città": "Montecatini Terme",        "num_sale": 4, "telefono": "0572 508601", "indirizzo": "Piazza Massimo D'Azeglio 5, 51016 Montecatini Terme PT", "lat": 43.8849, "lng": 10.7722},
-            {"nome": "Cinema Centrale",                      "città": "Viareggio",                "num_sale": 1, "telefono": "0584 581226", "indirizzo": "Via Cesare Battisti 67, 55049 Viareggio LU",          "lat": 43.8707, "lng": 10.2534},
-            {"nome": "Cinema Nuova Aurora",                  "città": "Sansepolcro",              "num_sale": 1, "telefono": "0575 1480629","indirizzo": "Via Piero della Francesca 47, 52037 Sansepolcro AR",  "lat": 43.5696, "lng": 12.1393},
-            {"nome": "Cinema Marconi",                       "città": "Firenze",                  "num_sale": 3, "telefono": "055 680554",  "indirizzo": "Viale Giannotti 45r, 50126 Firenze FI",               "lat": 43.7526, "lng": 11.2694},
-            {"nome": "Multisala Splendor",                   "città": "Massa",                    "num_sale": 7, "telefono": "0585 791105", "indirizzo": "Via Dorsale 11, 54100 Massa MS",                      "lat": 44.0181, "lng": 10.1327},
-            {"nome": "Teatro dei Servi",                     "città": "Massa",                    "num_sale": 1, "telefono": "0585 811973", "indirizzo": "Via Palestro 37, 54100 Massa MS",                     "lat": 44.0300, "lng": 10.1406},
-            {"nome": "Multisala Odeon",                      "città": "Pisa",                     "num_sale": 4, "telefono": "050 540168",  "indirizzo": "Piazza S. Paolo all'Orto 18, 56127 Pisa PI",          "lat": 43.7188, "lng": 10.4040},
-            {"nome": "Cinema Caffè Lanteri",                 "città": "Pisa",                     "num_sale": 1, "telefono": "050 577100",  "indirizzo": "Via San Michele degli Scalzi 46, 56124 Pisa PI",      "lat": 43.7188, "lng": 10.4180},
-            {"nome": "Cinema Teatro 4 Mori",                 "città": "Livorno",                  "num_sale": 1, "telefono": "342 543 1247","indirizzo": "Via Pietro Tacca 16, 57123 Livorno LI",               "lat": 43.5498, "lng": 10.3122},
-            {"nome": "Multisala Eden",                       "città": "Arezzo",                   "num_sale": 2, "telefono": "0575 353364", "indirizzo": "Via Antonio Guadagnoli 2, 52100 Arezzo AR",            "lat": 43.4632, "lng": 11.8792},
-            {"nome": "Nuovo Cinema Caporali",                "città": "Castiglione del Lago",     "num_sale": 3, "telefono": "075 965 3152","indirizzo": "Piazzetta San Domenico 1, 06061 Castiglione del Lago PG", "lat": 43.1200, "lng": 12.0557},
-            {"nome": "Cinema Teatro Verdi",                  "città": "San Vincenzo",             "num_sale": 1, "telefono": "0565 701918", "indirizzo": "Via Vittorio Emanuele II 121, 57027 San Vincenzo LI",  "lat": 43.0990, "lng": 10.5398},
-            {"nome": "Teatro Signorelli",                    "città": "Cortona",                  "num_sale": 1, "telefono": "0575 601882", "indirizzo": "Piazza Signorelli 13, 52044 Cortona AR",               "lat": 43.2763, "lng": 11.9876},
-            {"nome": "Cinema Città di Villafranca",          "città": "Villafranca in Lunigiana", "num_sale": 1, "telefono": "0187 498011", "indirizzo": "Via Roma 2, 54028 Villafranca in Lunigiana MS",        "lat": 44.3035, "lng":  9.9536},
-            {"nome": "Cinema Teatro Excelsior",              "città": "Reggello",                 "num_sale": 1, "telefono": "055 869190",  "indirizzo": "Via Dante Alighieri 7, 50066 Reggello FI",            "lat": 43.6845, "lng": 11.5340},
-            {"nome": "Cinema Arena Ardenza",                 "città": "Livorno",                  "num_sale": 1, "telefono": "0586 501403", "indirizzo": "Piazza Sforzini 17, 57128 Livorno LI",                "lat": 43.4980, "lng": 10.3350},
-            {"nome": "Arena Dentro Le Mura",                 "città": "San Casciano Val di Pesa", "num_sale": 1, "telefono": "",            "indirizzo": "Via Lucardesi 10, 50026 San Casciano Val di Pesa FI", "lat": 43.6563, "lng": 11.1832},
-        ]
-        added = 0
-        for c in _cinemas_seed:
-            if c["nome"] not in existing_nomi and c["nome"] not in deleted_nomi:
-                self.create_cinema(**c)
-                existing_nomi.add(c["nome"])
-                added += 1
-        if added:
-            print(f"✅ {added} cinema aggiunti al catalogo")
+        # NOTA: qui c'era un elenco di 41 cinema di esempio, reinserito a
+        # ogni avvio. Erano nomi inventati ("Cinema Firenze", "Cinema Empoli")
+        # che non corrispondono a locali reali e sporcavano l'anagrafica.
+        # I cinema veri si caricano dal Support Tool con importa_cinema.py
+        # oppure dal pulsante nella pagina Cinema del sito.
 
     # ── IMPORT da Excel esterno ────────────────────────
 

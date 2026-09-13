@@ -4,15 +4,7 @@ Invio notifiche email per nuovi ticket e nuovi messaggi dei clienti.
 Le impostazioni si leggono da impostazioni.py, quindi si cambiano dalla
 pagina web del portale senza riavviare il sito.
 
-Due modi di invio:
-
-  "smtp" — collegamento diretto al server di posta (porta 465/587).
-           E' il modo classico, ma molte reti bloccano quelle porte.
-
-  "blat" — stessa cosa ma affidata a blat.exe, il programma da riga di
-           comando per Windows. Utile quando l'antivirus blocca python.exe
-           ma lascia passare altri eseguibili, oppure quando funziona la
-           porta 25 e non la 465.
+L'invio avviene collegandosi direttamente al server di posta.
 
 Se manca la configurazione le notifiche vengono saltate e il sito continua
 a funzionare normalmente.
@@ -74,82 +66,6 @@ def _invia_smtp(imp, subject, html, testo, destinatario):
             s.send_message(msg)
 
 
-def _invia_blat(imp, subject, html, testo, destinatario):
-    """
-    Invio tramite blat.exe, il programma da riga di comando per Windows.
-
-    Parla comunque SMTP: non aggira il fatto che serva una porta aperta.
-    Ha senso in due casi:
-      - il server accetta la porta 25 mentre la 465 e' bloccata;
-      - l'antivirus blocca python.exe ma lascia passare blat.exe, cosa
-        frequente con le "protezioni posta" di Avast, Kaspersky ed Eset.
-
-    Il corpo viene scritto su un file temporaneo invece che passato come
-    argomento: l'HTML e' lungo e conterrebbe caratteri che la riga di
-    comando di Windows interpreta male.
-    """
-    import subprocess
-    import tempfile
-
-    percorso_blat = (imp.get("blat_path") or "blat.exe").strip()
-    host = imp.get("smtp_host", "").strip()
-    porta = (imp.get("smtp_port") or "25").strip()
-
-    fd, file_corpo = tempfile.mkstemp(suffix=".html", prefix="noc_mail_")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        comando = [
-            percorso_blat,
-            "-to", destinatario,
-            "-f", _mittente(imp),
-            "-subject", subject,
-            "-bodyF", file_corpo,
-            "-html",
-            "-charset", "UTF-8",
-            "-server", f"{host}:{porta}",
-        ]
-        if imp.get("smtp_user"):
-            comando += ["-u", imp["smtp_user"]]
-        if imp.get("smtp_password"):
-            comando += ["-pw", imp["smtp_password"]]
-
-        try:
-            esito = subprocess.run(comando, capture_output=True, text=True,
-                                   timeout=TIMEOUT + 20)
-        except FileNotFoundError:
-            raise RuntimeError(
-                f"blat non trovato in «{percorso_blat}». Indica il percorso "
-                f"completo, per esempio C:\\blat\\blat.exe")
-        except subprocess.TimeoutExpired:
-            raise RuntimeError("blat non ha risposto entro il tempo massimo: "
-                               "molto probabilmente la porta e' bloccata.")
-
-        if esito.returncode != 0:
-            # Mostra tutto quello che blat ha detto: senza il suo output
-            # non c'e' modo di capire se il problema e' la porta, le
-            # credenziali o la cifratura richiesta dal server.
-            uscita = "\n".join(p for p in (esito.stdout, esito.stderr) if p and p.strip())
-            uscita = uscita.strip() or "(blat non ha scritto nulla)"
-
-            # Il comando eseguito, con la password oscurata
-            mostrato = list(comando)
-            if "-pw" in mostrato:
-                mostrato[mostrato.index("-pw") + 1] = "********"
-            riga_comando = " ".join(mostrato)
-
-            raise RuntimeError(
-                f"blat ha restituito errore (codice {esito.returncode}).\n\n"
-                f"Risposta di blat:\n{uscita[:900]}\n\n"
-                f"Comando eseguito:\n{riga_comando}")
-    finally:
-        try:
-            os.remove(file_corpo)
-        except OSError:
-            pass
-
-
 def invia_adesso(subject: str, html: str, testo: str, destinatario: str = "") -> None:
     """
     Invio immediato e bloccante, senza catturare gli errori.
@@ -158,10 +74,7 @@ def invia_adesso(subject: str, html: str, testo: str, destinatario: str = "") ->
     """
     imp = impostazioni.tutte()
     destinatario = destinatario or imp.get("notify_email", "")
-    if imp.get("metodo_invio") == "blat":
-        _invia_blat(imp, subject, html, testo, destinatario)
-    else:
-        _invia_smtp(imp, subject, html, testo, destinatario)
+    _invia_smtp(imp, subject, html, testo, destinatario)
 
 
 def _send(subject: str, html: str, testo: str, destinatario: str = "") -> None:

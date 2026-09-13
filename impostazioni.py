@@ -25,24 +25,27 @@ _lock = threading.Lock()
 
 # chiave interna -> variabile d'ambiente equivalente
 DA_AMBIENTE = {
-    "metodo_invio":   "METODO_INVIO",      # "smtp" oppure "blat"
     "smtp_host":      "SMTP_HOST",
     "smtp_port":      "SMTP_PORT",
     "smtp_ssl":       "SMTP_SSL",
     "smtp_user":      "SMTP_USER",
     "smtp_password":  "SMTP_PASSWORD",
     "smtp_from":      "SMTP_FROM",
-    "blat_path":      "BLAT_PATH",         # percorso di blat.exe (solo Windows)
     "notify_email":   "NOTIFY_EMAIL",
     "app_base_url":   "APP_BASE_URL",
 }
 
+# Valori di partenza, gia' compilati nella pagina.
+# Devono essere valori VERI e non semplici suggerimenti grigi: un campo che
+# sembra pieno ma e' vuoto fa credere di aver configurato tutto, e l'invio
+# fallisce senza che si capisca il perche'.
 PREDEFINITI = {
-    "metodo_invio":  "smtp",
-    "blat_path":     "blat.exe",
+    "smtp_host":     "mail.mclink.it",
     "smtp_port":     "465",
     "smtp_ssl":      "1",
+    "smtp_user":     "assistenza@sigrafilm.it",
     "notify_email":  "assistenza@sigrafilm.it",
+    "app_base_url":  "http://188.8.192.138:5000",
 }
 
 
@@ -129,15 +132,10 @@ def campi_mancanti() -> list:
     if not imp.get("notify_email"):
         mancanti.append("Manda le notifiche a")
 
-    metodo = imp.get("metodo_invio")
-
-    # smtp e blat usano gli stessi dati del server di posta
     if not imp.get("smtp_host"):
         mancanti.append("Server")
     if not imp.get("smtp_user"):
         mancanti.append("Casella")
-    if metodo == "blat" and not imp.get("blat_path"):
-        mancanti.append("Percorso di blat.exe")
     return mancanti
 
 

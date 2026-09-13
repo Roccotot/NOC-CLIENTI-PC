@@ -26,6 +26,7 @@
           <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-light btn-sm">🗄 Archivio</a>
           <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
           <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
+          <a href="{{ url_for('impostazioni_notifiche') }}" class="btn btn-outline-light btn-sm">🔔 Notifiche</a>
           <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm"
             onclick="return confirm('Sei sicuro di voler uscire?')">🚪 Logout</a>
         </div>
@@ -56,43 +57,21 @@
           <!-- Dove arrivano -->
           <label class="form-label">Manda le notifiche a</label>
           <input type="email" name="notify_email" class="form-control mb-4"
-                 value="{{ imp.notify_email }}" placeholder="assistenza@sigrafilm.it"
-                 autocomplete="off" required>
+                 value="{{ imp.notify_email }}" autocomplete="off" required>
 
-          <!-- Come le manda -->
-          <label class="form-label">Come le manda</label>
-
-          <div class="form-check mb-1">
-            <input class="form-check-input" type="radio" name="metodo_invio" value="smtp"
-                   id="m-smtp" {% if imp.metodo_invio != 'blat' %}checked{% endif %}>
-            <label class="form-check-label" for="m-smtp">
-              Direttamente
-              <span style="color:var(--text-3); font-size:.78rem;">— il sito si collega al server di posta</span>
-            </label>
-          </div>
-
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="radio" name="metodo_invio" value="blat"
-                   id="m-blat" {% if imp.metodo_invio == 'blat' %}checked{% endif %}>
-            <label class="form-check-label" for="m-blat">
-              Tramite blat.exe
-              <span style="color:var(--text-3); font-size:.78rem;">— da provare se l'antivirus blocca il sito</span>
-            </label>
-          </div>
-
-          <!-- Dati del server di posta: valgono per entrambi i metodi -->
-          <div style="border-top:1px solid var(--border); padding-top:1rem;">
+          <!-- Dati del server di posta -->
+          <div>
             <div class="row g-2">
 
               <div class="col-12 col-sm-6">
                 <label class="form-label">Server</label>
                 <input type="text" name="smtp_host" class="form-control"
-                       value="{{ imp.smtp_host }}" placeholder="mail.mclink.it" autocomplete="off">
+                       value="{{ imp.smtp_host }}" autocomplete="off" required>
               </div>
               <div class="col-6 col-sm-3">
                 <label class="form-label">Porta</label>
                 <input type="number" name="smtp_port" class="form-control"
-                       value="{{ imp.smtp_port }}" placeholder="465">
+                       value="{{ imp.smtp_port }}" required>
               </div>
               <div class="col-6 col-sm-3 d-flex align-items-end">
                 <div class="form-check mb-2">
@@ -105,7 +84,7 @@
               <div class="col-12 col-sm-6">
                 <label class="form-label">Casella</label>
                 <input type="text" name="smtp_user" class="form-control"
-                       value="{{ imp.smtp_user }}" placeholder="assistenza@sigrafilm.it" autocomplete="off">
+                       value="{{ imp.smtp_user }}" autocomplete="off" required>
               </div>
               <div class="col-12 col-sm-6">
                 <label class="form-label">Password</label>
@@ -114,16 +93,10 @@
                        autocomplete="off">
               </div>
 
-              <div class="col-12 col-sm-6">
+              <div class="col-12">
                 <label class="form-label">Email mittente</label>
                 <input type="email" name="smtp_from" class="form-control"
                        value="{{ imp.smtp_from }}" placeholder="se vuoto usa la casella" autocomplete="off">
-              </div>
-
-              <div class="col-12 col-sm-6" id="riga-blat">
-                <label class="form-label">Percorso di blat.exe</label>
-                <input type="text" name="blat_path" class="form-control"
-                       value="{{ imp.blat_path }}" placeholder="C:\blat\blat.exe" autocomplete="off">
               </div>
 
             </div>
@@ -137,7 +110,7 @@
         <div class="card-body">
           <label class="form-label">Indirizzo del sito</label>
           <input type="text" name="app_base_url" class="form-control"
-                 value="{{ imp.app_base_url }}" placeholder="http://188.8.192.138:5000" autocomplete="off">
+                 value="{{ imp.app_base_url }}" autocomplete="off">
           <div style="font-size:.78rem; color:var(--text-3); margin-top:.4rem;">
             Usato per il pulsante «Apri il ticket» dentro le email.
           </div>
@@ -158,16 +131,5 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Il percorso di blat serve solo se si usa blat
-    function aggiornaCampi() {
-      var blat = document.getElementById('m-blat').checked;
-      document.getElementById('riga-blat').style.display = blat ? '' : 'none';
-    }
-    ['m-smtp','m-blat'].forEach(function (id) {
-      document.getElementById(id).addEventListener('change', aggiornaCampi);
-    });
-    aggiornaCampi();
-  </script>
 </body>
 </html>

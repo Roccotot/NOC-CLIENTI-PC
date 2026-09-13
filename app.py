@@ -578,7 +578,6 @@ def impostazioni_notifiche():
         azione = request.form.get("azione", "salva")
 
         impostazioni.salva({
-            "metodo_invio":  request.form.get("metodo_invio", "smtp"),
             "smtp_host":     request.form.get("smtp_host", ""),
             "smtp_port":     request.form.get("smtp_port", ""),
             "smtp_ssl":      "1" if request.form.get("smtp_ssl") else "0",
@@ -586,7 +585,6 @@ def impostazioni_notifiche():
             # vuoto = lascia quella già salvata
             "smtp_password": request.form.get("smtp_password", ""),
             "smtp_from":     request.form.get("smtp_from", ""),
-            "blat_path":     request.form.get("blat_path", ""),
             "notify_email":  request.form.get("notify_email", ""),
             "app_base_url":  request.form.get("app_base_url", ""),
         })
@@ -741,6 +739,21 @@ def delete_user(user_id):
 def admin_cinemas():
     if session.get("role") != "admin":
         return "Accesso negato", 403
+
+    if request.method == "POST" and request.form.get("azione") == "importa":
+        # Sostituisce l'anagrafica con i cinema reali del Support Tool,
+        # ricollegando le assegnazioni utente anche se il nome cambia.
+        try:
+            import importa_cinema
+            esito = importa_cinema.importa(store)
+            flash(f"Importati {esito['inseriti']} cinema dal Support Tool. "
+                  f"Assegnazioni ricollegate: {esito['ricollegate']}."
+                  + (f" Perse: {esito['perse']}." if esito["perse"] else ""),
+                  "success")
+        except Exception as e:
+            flash(f"Importazione non riuscita: {e}", "danger")
+        return redirect(url_for("admin_cinemas"))
+
     if request.method == "POST":
         nome     = request.form.get("nome", "").strip()
         città    = request.form.get("città", "").strip()

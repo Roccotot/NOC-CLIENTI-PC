@@ -108,6 +108,53 @@ def estrai(html: str) -> list:
     return elenco
 
 
+def importa(store) -> dict:
+    """
+    Sostituisce l'anagrafica con i cinema del Support Tool.
+
+    Usata sia dallo script da riga di comando sia dal pulsante nella pagina
+    Cinema del sito, cosi' la logica sta in un posto solo.
+
+    Le assegnazioni utente-cinema puntano all'identificativo, non al nome:
+    cancellare i cinema le romperebbe, quindi vengono ricollegate
+    riconoscendo lo stesso locale anche se il nome cambia leggermente.
+    """
+    nuovi = estrai(scarica())
+    if not nuovi:
+        raise RuntimeError("nessun cinema trovato nella pagina scaricata; "
+                           "forse il formato del Support Tool e' cambiato")
+
+    attuali = store.get_all_cinemas()
+    utenti = store.get_all_users()
+
+    # Chi era assegnato a cosa, per nome: gli identificativi cambiano
+    assegnazioni = {}
+    for u in utenti:
+        ids = set(store.get_cinema_ids_for_user(u.id))
+        chiavi = [chiave_confronto(c.nome, c.città) for c in attuali if c.id in ids]
+        if chiavi:
+            assegnazioni[u.id] = chiavi
+
+    for c in attuali:
+        store.delete_cinema(c.id)
+
+    mappa = {}
+    for c in nuovi:
+        creato = store.create_cinema(nome=c["nome"], città=c["città"],
+                                     num_sale=c["num_sale"],
+                                     lat=c["lat"], lng=c["lng"])
+        mappa[chiave_confronto(c["nome"], c["città"])] = creato.id
+
+    ricollegate = perse = 0
+    for user_id, chiavi in assegnazioni.items():
+        nuovi_id = [mappa[k] for k in chiavi if k in mappa]
+        perse += len(chiavi) - len(nuovi_id)
+        ricollegate += len(nuovi_id)
+        store.set_user_cinemas(user_id, nuovi_id)
+
+    return {"inseriti": len(nuovi), "ricollegate": ricollegate, "perse": perse}
+
+
 def main() -> int:
     print("=== Importazione cinema dal Support Tool ===\n")
 

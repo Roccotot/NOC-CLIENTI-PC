@@ -243,6 +243,28 @@
       {% endfor %}{% endif %}
     {% endwith %}
 
+    <!-- Importazione dal Support Tool -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div style="flex:1; min-width:260px;">
+          <div class="card-title" style="margin-bottom:.25rem;">Cinema reali</div>
+          <div style="font-size:.82rem; color:var(--text-3);">
+            Sostituisce l'elenco qui sotto con i cinema del Support Tool,
+            completi di coordinate. Le assegnazioni degli utenti vengono
+            ricollegate da sole.
+          </div>
+        </div>
+        <form method="post" class="ms-auto"
+              onsubmit="return confirm('Sostituire tutta l\'anagrafica con i cinema del Support Tool?');">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="azione" value="importa">
+          <button type="submit" class="btn btn-outline-info">
+            Importa dal Support Tool
+          </button>
+        </form>
+      </div>
+    </div>
+
     <!-- Form aggiunta nuovo cinema -->
     <div class="card shadow-sm mb-4">
       <div class="card-body">
