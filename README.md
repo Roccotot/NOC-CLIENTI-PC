@@ -3,7 +3,7 @@
 Sistema interno di gestione dei problemi tecnici nei cinema **SigraFilm**.
 Sviluppato con **Flask**, **PostgreSQL** e **Bootstrap 5**.
 
-URL produzione: [sigrafilm.onrender.com](https://sigrafilm.onrender.com)
+Il sito gira in locale su un PC Windows, raggiungibile su http://188.8.192.138:5000
 
 ---
 
@@ -137,7 +137,6 @@ SigraFilm-NOC/
 - [Bootstrap 5](https://getbootstrap.com/) — frontend responsive
 - [Leaflet.js](https://leafletjs.com/) — mappa interattiva cinema
 - [Gunicorn](https://gunicorn.org/) — application server
-- [Render](https://render.com/) — hosting
 
 ---
 

@@ -109,19 +109,10 @@ Con 500 ticket e 3000 messaggi erano ~17 secondi di attesa: ora sono 0,3.
 
 ## Notifiche email
 
-Per attivarle serve il file `.env` nella cartella del progetto. Copia
-`.env.example` in `.env` e compila con i dati veri della casella:
+Si configurano dal sito: entra come amministratore e apri **🔔 Notifiche**
+nel menu in alto.
 
-```
-SMTP_HOST=...
-SMTP_PORT=465
-SMTP_SSL=1
-SMTP_USER=assistenza@sigrafilm.it
-SMTP_PASSWORD=...
-NOTIFY_EMAIL=assistenza@sigrafilm.it
-APP_BASE_URL=http://188.8.192.138:5000
-```
+I campi arrivano gia' compilati con i dati MC-link: basta inserire la
+password della casella e premere **Salva e invia una prova**.
 
-Il file `.env` non finisce su GitHub, quindi la password resta solo sul tuo PC.
-
-Senza `.env` il sito funziona normalmente: le notifiche vengono solo saltate.
+Le modifiche hanno effetto subito, senza riavviare il sito.
