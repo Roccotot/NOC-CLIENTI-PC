@@ -25,7 +25,7 @@ _lock = threading.Lock()
 
 # chiave interna -> variabile d'ambiente equivalente
 DA_AMBIENTE = {
-    "metodo_invio":   "METODO_INVIO",      # "smtp", "blat" oppure "web"
+    "metodo_invio":   "METODO_INVIO",      # "smtp" oppure "blat"
     "smtp_host":      "SMTP_HOST",
     "smtp_port":      "SMTP_PORT",
     "smtp_ssl":       "SMTP_SSL",
@@ -33,7 +33,6 @@ DA_AMBIENTE = {
     "smtp_password":  "SMTP_PASSWORD",
     "smtp_from":      "SMTP_FROM",
     "blat_path":      "BLAT_PATH",         # percorso di blat.exe (solo Windows)
-    "api_key":        "EMAIL_API_KEY",     # chiave del servizio web (Brevo)
     "notify_email":   "NOTIFY_EMAIL",
     "app_base_url":   "APP_BASE_URL",
 }
@@ -94,7 +93,7 @@ def salva(nuove: dict) -> None:
         for chiave, valore in nuove.items():
             if chiave not in DA_AMBIENTE:
                 continue
-            if chiave in ("smtp_password", "api_key") and not str(valore).strip():
+            if chiave == "smtp_password" and not str(valore).strip():
                 continue          # non sovrascrivere con vuoto
             correnti[chiave] = str(valore).strip()
 
@@ -131,13 +130,6 @@ def campi_mancanti() -> list:
         mancanti.append("Manda le notifiche a")
 
     metodo = imp.get("metodo_invio")
-
-    if metodo == "web":
-        if not imp.get("api_key"):
-            mancanti.append("Chiave API di Brevo")
-        if not (imp.get("smtp_from") or imp.get("smtp_user")):
-            mancanti.append("Email mittente")
-        return mancanti
 
     # smtp e blat usano gli stessi dati del server di posta
     if not imp.get("smtp_host"):
