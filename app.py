@@ -498,12 +498,23 @@ def admin_users():
         if store.get_user_by_username(username):
             flash("Username già in uso.", "warning")
             return redirect(url_for("admin_users"))
-        store.create_user(username=username, password_hash=generate_password_hash(password),
-                          password_plain=password, role=role, telefono=telefono, email=email)
-        flash("Utente creato con successo.", "success")
+        nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
+                                  password_plain=password, role=role, telefono=telefono, email=email)
+        # Cinema selezionati nel form (solo per utenti non admin: gli admin vedono tutto)
+        cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
+        if role != "admin" and cinema_ids:
+            store.set_user_cinemas(nuovo.id, cinema_ids)
+            flash(f"Utente creato con {len(cinema_ids)} cinema assegnati.", "success")
+        else:
+            flash("Utente creato con successo.", "success")
         return redirect(url_for("admin_users"))
     users_list = sorted(store.get_all_users(), key=lambda u: u.id)
-    return render_template("users.html", users=users_list)
+    all_cinemas = store.get_all_cinemas(order_by="città_nome")
+    # Cinema già assegnati, per mostrarli nella tabella
+    assegnati = {u.id: store.get_cinema_ids_for_user(u.id) for u in users_list}
+    nomi_cinema = {c.id: c.nome for c in all_cinemas}
+    return render_template("users.html", users=users_list, all_cinemas=all_cinemas,
+                           assegnati=assegnati, nomi_cinema=nomi_cinema)
 
 
 # --- DETTAGLIO UTENTE ---
