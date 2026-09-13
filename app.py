@@ -739,6 +739,21 @@ def delete_user(user_id):
 def admin_cinemas():
     if session.get("role") != "admin":
         return "Accesso negato", 403
+
+    if request.method == "POST" and request.form.get("azione") == "importa":
+        # Sostituisce l'anagrafica con i cinema reali del Support Tool,
+        # ricollegando le assegnazioni utente anche se il nome cambia.
+        try:
+            import importa_cinema
+            esito = importa_cinema.importa(store)
+            flash(f"Importati {esito['inseriti']} cinema dal Support Tool. "
+                  f"Assegnazioni ricollegate: {esito['ricollegate']}."
+                  + (f" Perse: {esito['perse']}." if esito["perse"] else ""),
+                  "success")
+        except Exception as e:
+            flash(f"Importazione non riuscita: {e}", "danger")
+        return redirect(url_for("admin_cinemas"))
+
     if request.method == "POST":
         nome     = request.form.get("nome", "").strip()
         città    = request.form.get("città", "").strip()
