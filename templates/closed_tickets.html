@@ -52,9 +52,23 @@
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
       <h2 class="page-heading mb-0">
         Archivio Ticket Chiusi
-        <small>{{ problems|length }} ticket</small>
+        <small>{{ totale }} ticket{% if ricerca %} trovati{% endif %}</small>
       </h2>
     </div>
+
+    <!-- Ricerca -->
+    <form method="get" class="mb-3">
+      <div class="input-group">
+        <input type="search" name="q" value="{{ ricerca }}" autocomplete="off"
+          class="form-control"
+          placeholder="Cerca per cinema, citta, sala, descrizione, autore o numero (#12)...">
+        <button type="submit" class="btn btn-outline-light">Cerca</button>
+        {% if ricerca %}
+          <a href="{{ url_for('closed_tickets') }}" class="btn btn-outline-secondary"
+             title="Azzera la ricerca">&times;</a>
+        {% endif %}
+      </div>
+    </form>
 
     {% if problems %}
       <div class="table-responsive">
@@ -129,6 +143,28 @@
           </tbody>
         </table>
       </div>
+
+      {% if pagine > 1 %}
+        <nav class="d-flex align-items-center justify-content-center gap-2 mt-3 flex-wrap">
+          {% if pagina > 1 %}
+            <a href="?q={{ ricerca|urlencode }}&p={{ pagina - 1 }}"
+               class="btn btn-sm btn-outline-light">&larr; Precedente</a>
+          {% else %}
+            <span class="btn btn-sm btn-outline-secondary disabled">&larr; Precedente</span>
+          {% endif %}
+
+          <span style="font-size:.82rem; color:var(--text-3);">
+            Pagina {{ pagina }} di {{ pagine }}
+          </span>
+
+          {% if pagina < pagine %}
+            <a href="?q={{ ricerca|urlencode }}&p={{ pagina + 1 }}"
+               class="btn btn-sm btn-outline-light">Successiva &rarr;</a>
+          {% else %}
+            <span class="btn btn-sm btn-outline-secondary disabled">Successiva &rarr;</span>
+          {% endif %}
+        </nav>
+      {% endif %}
     {% else %}
       <div class="empty-state">
         <div class="empty-state-icon">🗄</div>

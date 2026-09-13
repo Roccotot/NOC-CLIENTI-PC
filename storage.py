@@ -385,16 +385,48 @@ class ExcelStore:
         return None
 
     def get_problems_filtered(self, stato_ne: str = None, stato_eq: str = None,
-                               autore: str = None, urgenza: str = None) -> List[Problem]:
+                               autore: str = None, urgenza: str = None,
+                               cinemas: List[str] = None,
+                               ricerca: str = None) -> List[Problem]:
+        """
+        Elenco ticket filtrato.
+
+        `autore` e `cinemas` si sommano: un utente vede i ticket che ha aperto
+        lui PIU' quelli dei cinema che gli sono stati assegnati, così i colleghi
+        dello stesso cinema vedono gli stessi ticket.
+        `ricerca` cerca il testo in cinema, città, sala, descrizione, autore
+        e numero del ticket.
+        """
         problems = self.get_all_problems()
         if stato_ne:
             problems = [p for p in problems if p.stato != stato_ne]
         if stato_eq:
             problems = [p for p in problems if p.stato == stato_eq]
-        if autore:
-            problems = [p for p in problems if p.autore == autore]
+
+        if autore or cinemas:
+            nomi = {c.strip().lower() for c in (cinemas or []) if c}
+            problems = [
+                p for p in problems
+                if (autore and p.autore == autore)
+                or (nomi and (p.cinema or "").strip().lower() in nomi)
+            ]
+
         if urgenza:
             problems = [p for p in problems if p.urgenza == urgenza]
+
+        if ricerca:
+            q = ricerca.strip().lower()
+            if q:
+                problems = [
+                    p for p in problems
+                    if q in (p.cinema or "").lower()
+                    or q in (p.città or "").lower()
+                    or q in str(p.sala or "").lower()
+                    or q in (p.tipo or "").lower()
+                    or q in (p.autore or "").lower()
+                    or q in f"#{p.id}"
+                ]
+
         return sorted(problems, key=lambda p: p.data_ora or datetime.min, reverse=True)
 
     def create_problem(self, cinema: str, città: str, sala: str, tipo: str,
@@ -436,6 +468,23 @@ class ExcelStore:
 
     def _comment_to_row(self, c: Comment) -> tuple:
         return (c.id, c.problem_id, c.autore, c.role, c.testo, _fmt_dt(c.data_ora))
+
+    def get_comments_grouped(self) -> Dict[int, List[Comment]]:
+        """
+        Tutti i commenti raggruppati per ticket, con UNA sola lettura del file.
+
+        Serve alla dashboard, che prima chiamava get_comments() dentro un ciclo
+        e quindi rileggeva l'intero commenti.xlsx una volta per ogni ticket:
+        con 60 ticket aperti e un anno di archivio erano ~15 secondi di attesa.
+        """
+        with _lock:
+            gruppi: Dict[int, List[Comment]] = {}
+            for r in self._rows("commenti.xlsx"):
+                pid = _i(r[1])
+                gruppi.setdefault(pid, []).append(self._row_to_comment(r))
+        for lista in gruppi.values():
+            lista.sort(key=lambda c: c.data_ora or datetime.min)
+        return gruppi
 
     def get_comments(self, problem_id: int) -> List[Comment]:
         with _lock:

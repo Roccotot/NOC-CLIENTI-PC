@@ -40,12 +40,12 @@ def is_configured() -> bool:
     return bool(SMTP_HOST and SMTP_USER and NOTIFY_EMAIL)
 
 
-def _send(subject: str, html: str, testo: str) -> None:
+def _send(subject: str, html: str, testo: str, destinatario: str = "") -> None:
     """Invio effettivo (bloccante). Chiamato dentro un thread."""
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"]    = formataddr((FROM_NAME, SMTP_FROM))
-    msg["To"]      = NOTIFY_EMAIL
+    msg["To"]      = destinatario or NOTIFY_EMAIL
     msg.set_content(testo)
     msg.add_alternative(html, subtype="html")
 
@@ -73,13 +73,16 @@ def _send(subject: str, html: str, testo: str) -> None:
         traceback.print_exc()
 
 
-def _send_async(subject: str, html: str, testo: str) -> None:
+def _send_async(subject: str, html: str, testo: str, destinatario: str = "") -> None:
     """Invia in background senza bloccare la risposta HTTP."""
     if not is_configured():
         print("[mail] SMTP non configurato — notifica saltata.")
         return
+    if destinatario and "@" not in destinatario:
+        print(f"[mail] Destinatario non valido, notifica saltata: {destinatario!r}")
+        return
     threading.Thread(
-        target=_send, args=(subject, html, testo), daemon=True
+        target=_send, args=(subject, html, testo, destinatario), daemon=True
     ).start()
 
 
@@ -210,6 +213,54 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
         testo += f"\nApri: {link}\n"
 
     _send_async(subject, html, testo)
+
+
+def notifica_risposta_al_cliente(problem, email_cliente: str, testo_msg: str) -> None:
+    """
+    Avvisa il cliente che l'assistenza ha risposto sul suo ticket.
+
+    Senza questa notifica il cliente doveva ricontrollare il sito a mano per
+    sapere se qualcuno gli aveva risposto.
+    """
+    if not email_cliente:
+        return
+
+    colore = "#2563eb"
+    link   = _ticket_url(problem.id)
+
+    righe = [
+        ("Ticket",  f"#{problem.id}"),
+        ("Cinema",  problem.cinema),
+        ("Sala",    str(problem.sala)),
+        ("Stato",   problem.stato),
+    ]
+
+    corpo = (
+        f'<div style="margin-top:20px;padding:14px 16px;background:#eff6ff;'
+        f'border-left:3px solid {colore};border-radius:0 6px 6px 0;">'
+        f'<div style="color:#6b7280;font-size:11px;text-transform:uppercase;'
+        f'letter-spacing:.5px;margin-bottom:6px;">Risposta dell\'assistenza</div>'
+        f'<div style="color:#111827;font-size:14px;line-height:1.5;'
+        f'white-space:pre-wrap;">{_escape(testo_msg)}</div></div>'
+        f'<p style="margin:18px 0 0;color:#6b7280;font-size:13px;">'
+        f'Per rispondere, apri il ticket dal sito.</p>'
+    )
+
+    subject = f"[SigraFilm] Risposta al tuo ticket #{problem.id} — {problem.cinema}"
+    html    = _wrap("Ti abbiamo risposto", colore, righe, corpo, link)
+
+    testo = (
+        f"Abbiamo risposto al tuo ticket #{problem.id}\n\n"
+        f"Cinema: {problem.cinema}\n"
+        f"Sala:   {problem.sala}\n"
+        f"Stato:  {problem.stato}\n\n"
+        f"Risposta dell'assistenza:\n{testo_msg}\n\n"
+        f"Per rispondere, apri il ticket dal sito.\n"
+    )
+    if link:
+        testo += f"\n{link}\n"
+
+    _send_async(subject, html, testo, destinatario=email_cliente)
 
 
 def _escape(s: str) -> str:

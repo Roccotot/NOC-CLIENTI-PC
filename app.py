@@ -101,6 +101,32 @@ ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp",
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 os.makedirs(ALLEGATI_FOLDER, exist_ok=True)
 
+def _cinema_utente() -> list[str]:
+    """
+    Nomi dei cinema assegnati all'utente collegato.
+
+    Serve a far vedere a chi lavora nello stesso cinema gli stessi ticket:
+    prima la visibilità era solo per autore, quindi due account dello stesso
+    cinema non vedevano i ticket l'uno dell'altro.
+    """
+    if session.get("role") == "admin":
+        return []          # l'admin vede tutto, nessun filtro
+    ids = store.get_cinema_ids_for_user(session.get("user_id"))
+    if not ids:
+        return []
+    return [c.nome for c in store.get_cinemas_by_ids(ids)]
+
+
+def _puo_vedere(p) -> bool:
+    """True se l'utente collegato può vedere/modificare il ticket `p`."""
+    if session.get("role") == "admin":
+        return True
+    if session.get("username") == p.autore:
+        return True
+    suoi = {n.strip().lower() for n in _cinema_utente()}
+    return bool(suoi) and (p.cinema or "").strip().lower() in suoi
+
+
 def _cinema_folder(cinema_nome: str) -> str:
     """Sanitizza il nome cinema per usarlo come cartella."""
     safe = re.sub(r'[<>:"/\\|?*]', '_', cinema_nome).strip()
@@ -215,18 +241,26 @@ def dashboard():
 
     filter_urgenza = request.args.get("filter_urgenza", "")
     filter_stato   = request.args.get("filter_stato", "")
+    ricerca        = request.args.get("q", "").strip()
     uid = session["user_id"]
+
+    e_admin     = session["role"] == "admin"
+    mio_autore  = None if e_admin else session["username"]
+    miei_cinema = None if e_admin else _cinema_utente()
 
     problems = store.get_problems_filtered(
         stato_ne="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=mio_autore,
+        cinemas=miei_cinema,
         urgenza=filter_urgenza or None,
         stato_eq=filter_stato or None,
+        ricerca=ricerca or None,
     )
 
     all_open = store.get_problems_filtered(
         stato_ne="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=mio_autore,
+        cinemas=miei_cinema,
     )
     stats = {
         "total":    len(all_open),
@@ -244,11 +278,14 @@ def dashboard():
     cinemas.sort(key=lambda c: c.nome)
     single_cinema = cinemas[0] if len(cinemas) == 1 else None
 
-    # Contatori messaggi non letti
+    # Contatori messaggi non letti.
+    # I commenti si leggono UNA volta sola e si raggruppano: prima si
+    # rileggeva l'intero file per ogni ticket in elenco.
     reads = store.get_reads_by_user(uid)
+    commenti_per_ticket = store.get_comments_grouped()
     chat_info = {}
     for p in problems:
-        comments = store.get_comments(p.id)
+        comments = commenti_per_ticket.get(p.id, [])
         total = len(comments)
         last_read = reads.get(p.id)
         if last_read is None:
@@ -264,6 +301,7 @@ def dashboard():
         "dashboard.html",
         problems=problems,
         filter_urgenza=filter_urgenza,
+        ricerca=ricerca,
         filter_stato=filter_stato,
         stats=stats,
         cinemas=cinemas,
@@ -281,7 +319,7 @@ def ticket_detail(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     comments = store.get_comments(p.id)
     allegati = _get_allegati(p.cinema, p.id)
@@ -297,14 +335,19 @@ def add_comment(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     testo = request.form.get("testo", "").strip()
     if testo:
         store.add_comment(p.id, session["username"], session["role"], testo)
-        # Notifica solo se scrive un cliente (non un admin)
         if session["role"] != "admin":
+            # Scrive un cliente -> avvisa l'assistenza
             mailer.notifica_nuovo_messaggio(p, session["username"], testo)
+        else:
+            # Risponde l'assistenza -> avvisa il cliente che ha aperto il ticket
+            cliente = store.get_user_by_username(p.autore)
+            if cliente and cliente.email:
+                mailer.notifica_risposta_al_cliente(p, cliente.email, testo)
     return redirect(url_for("ticket_detail", problem_id=p.id) + "#chat-bottom")
 
 
@@ -316,7 +359,7 @@ def upload_allegato(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     f = request.files.get("allegato")
     if not f or not f.filename:
@@ -363,7 +406,7 @@ def download_allegato(cinema_folder, filename):
     try:
         ticket_id = int(safe_file.split("_")[0])
         p = store.get_problem_by_id(ticket_id)
-        if p and session["role"] != "admin" and session["username"] != p.autore:
+        if p and not _puo_vedere(p):
             return "Accesso negato", 403
     except (ValueError, IndexError):
         if session["role"] != "admin":
@@ -390,7 +433,7 @@ def delete_allegato(cinema_folder, filename):
     if session["role"] != "admin":
         if ticket_id:
             p = store.get_problem_by_id(ticket_id)
-            if not p or session["username"] != p.autore:
+            if not p or not _puo_vedere(p):
                 return "Accesso negato", 403
         else:
             return "Accesso negato", 403
@@ -410,7 +453,7 @@ def update_ticket(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     nuovo_stato   = request.form.get("stato", p.stato)
     nuova_urgenza = request.form.get("urgenza", p.urgenza)
@@ -434,11 +477,32 @@ def update_ticket(problem_id):
 def closed_tickets():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    problems = store.get_problems_filtered(
+    e_admin = session["role"] == "admin"
+    ricerca = request.args.get("q", "").strip()
+    try:
+        pagina = max(1, int(request.args.get("p", "1")))
+    except ValueError:
+        pagina = 1
+
+    tutti = store.get_problems_filtered(
         stato_eq="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=None if e_admin else session["username"],
+        cinemas=None if e_admin else _cinema_utente(),
+        ricerca=ricerca or None,
     )
-    return render_template("closed_tickets.html", problems=problems)
+
+    # Paginazione: l'archivio cresce senza limite, caricarlo tutto
+    # in una pagina sola diventa presto impraticabile.
+    per_pagina = 50
+    totale  = len(tutti)
+    pagine  = max(1, (totale + per_pagina - 1) // per_pagina)
+    pagina  = min(pagina, pagine)
+    inizio  = (pagina - 1) * per_pagina
+    problems = tutti[inizio:inizio + per_pagina]
+
+    return render_template("closed_tickets.html", problems=problems,
+                           ricerca=ricerca, pagina=pagina, pagine=pagine,
+                           totale=totale)
 
 
 # --- AGGIUNGI PROBLEMA ---
@@ -474,7 +538,7 @@ def edit_problem(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     if request.method == "POST":
         p.cinema  = request.form.get("cinema", p.cinema)
@@ -496,7 +560,7 @@ def delete_problem(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     p.stato = "Chiuso"
     store.update_problem(p)
