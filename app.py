@@ -25,6 +25,7 @@ except ImportError:
 
 from storage import store
 import mailer
+import notifiche_telegram
 
 def _chiave_segreta() -> str:
     """
@@ -324,6 +325,7 @@ def add_comment(problem_id):
         if session["role"] != "admin":
             # Scrive un cliente -> avvisa l'assistenza
             mailer.notifica_nuovo_messaggio(p, session["username"], testo)
+            notifiche_telegram.notifica_nuovo_messaggio(p, session["username"], testo)
         else:
             # Risponde l'assistenza -> avvisa il cliente che ha aperto il ticket
             cliente = store.get_user_by_username(p.autore)
@@ -507,6 +509,7 @@ def add_problem():
     # Notifica solo se il ticket è aperto da un cliente (non da un admin)
     if session["role"] != "admin":
         mailer.notifica_nuovo_ticket(nuovo)
+        notifiche_telegram.notifica_nuovo_ticket(nuovo)
     flash("Problema aggiunto con successo.", "success")
     return redirect(url_for("dashboard"))
 
