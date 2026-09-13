@@ -26,6 +26,7 @@ except ImportError:
 from storage import store
 import mailer
 import notifiche_telegram
+import impostazioni
 
 def _chiave_segreta() -> str:
     """
@@ -565,6 +566,88 @@ def destroy_problem(problem_id):
     store.delete_problem(problem_id)
     flash("Ticket eliminato definitivamente.", "success")
     return redirect(url_for("closed_tickets"))
+
+
+# --- IMPOSTAZIONI NOTIFICHE (solo admin) ---
+@app.route("/impostazioni", methods=["GET", "POST"])
+def impostazioni_notifiche():
+    if session.get("role") != "admin":
+        return "Accesso negato", 403
+
+    if request.method == "POST":
+        azione = request.form.get("azione", "salva")
+
+        impostazioni.salva({
+            "metodo_invio":  request.form.get("metodo_invio", "smtp"),
+            "smtp_host":     request.form.get("smtp_host", ""),
+            "smtp_port":     request.form.get("smtp_port", ""),
+            "smtp_ssl":      "1" if request.form.get("smtp_ssl") else "0",
+            "smtp_user":     request.form.get("smtp_user", ""),
+            # vuoto = lascia quella già salvata
+            "smtp_password": request.form.get("smtp_password", ""),
+            "smtp_from":     request.form.get("smtp_from", ""),
+            "pop3_host":     request.form.get("pop3_host", ""),
+            "pop3_port":     request.form.get("pop3_port", ""),
+            "pop3_ssl":      "1" if request.form.get("pop3_ssl") else "0",
+            "pop3_user":     request.form.get("pop3_user", ""),
+            "pop3_password": request.form.get("pop3_password", ""),
+            "api_key":       request.form.get("api_key", ""),
+            "notify_email":  request.form.get("notify_email", ""),
+            "app_base_url":  request.form.get("app_base_url", ""),
+        })
+
+        if azione == "verifica_pop3":
+            try:
+                flash(mailer.verifica_credenziali_pop3(), "success")
+            except Exception as e:
+                flash(f"Verifica fallita: {_spiega_errore_invio(e)}", "danger")
+            return redirect(url_for("impostazioni_notifiche"))
+
+        if azione == "prova":
+            if not impostazioni.configurato():
+                flash("Compila prima i campi obbligatori, poi riprova.", "warning")
+                return redirect(url_for("impostazioni_notifiche"))
+            destinatario = impostazioni.leggi("notify_email")
+            try:
+                mailer.invia_adesso(
+                    "[SigraFilm NOC] Prova invio notifiche",
+                    "<p>Se leggi questo messaggio, le notifiche del NOC funzionano.</p>",
+                    "Se leggi questo messaggio, le notifiche del NOC funzionano.",
+                    destinatario,
+                )
+                flash(f"Email di prova inviata a {destinatario}. "
+                      f"Controlla la casella, guarda anche nello spam.", "success")
+            except Exception as e:
+                flash(f"Invio fallito: {_spiega_errore_invio(e)}", "danger")
+        else:
+            flash("Impostazioni salvate.", "success")
+
+        return redirect(url_for("impostazioni_notifiche"))
+
+    imp = impostazioni.tutte()
+    return render_template("impostazioni.html", imp=imp,
+                           configurato=impostazioni.configurato(),
+                           telegram_attivo=notifiche_telegram.is_configured())
+
+
+def _spiega_errore_invio(e: Exception) -> str:
+    """Traduce l'errore tecnico in una spiegazione utile."""
+    testo = str(e)
+    tipo = type(e).__name__
+
+    if "timed out" in testo.lower() or tipo == "timeout":
+        return ("il server non risponde (timeout). Di solito significa che la "
+                "porta è bloccata dall'antivirus, dal firewall di Windows o "
+                "dal router. Prova il metodo «Invio via web», che usa la "
+                "stessa porta del browser.")
+    if "authentication" in testo.lower() or "535" in testo or "AUTH" in testo:
+        return ("utente o password rifiutati dal server di posta. Se la casella "
+                "ha la verifica in due passaggi serve una «password per le app».")
+    if "Name or service not known" in testo or "getaddrinfo" in testo:
+        return "il nome del server non esiste: controlla di averlo scritto giusto."
+    if "Connection refused" in testo:
+        return "il server rifiuta la connessione su quella porta: controlla il numero di porta."
+    return f"{tipo}: {testo[:200]}"
 
 
 # --- GESTIONE UTENTI ---
