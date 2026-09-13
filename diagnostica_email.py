@@ -15,7 +15,7 @@ import ssl
 import smtplib
 import sys
 
-HOST_PREDEFINITO = "smtp.mclink.it"
+HOST_PREDEFINITO = "mail.mclink.it"
 
 # (porta, descrizione, ssl_diretto)
 PORTE = [
