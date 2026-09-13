@@ -12,7 +12,10 @@ Struttura cartella data/:
 """
 
 import os
+import shutil
+import tempfile
 import threading
+import time
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
@@ -183,8 +186,72 @@ def _write_header(ws, headers: list):
         cell.alignment = Alignment(horizontal="center")
 
 
+BACKUP_DIR = os.path.join(DATA_DIR, "backup")
+COPIE_BACKUP = 10          # quante copie tenere per ogni file
+INTERVALLO_BACKUP = 3600   # secondi minimi tra due backup dello stesso file
+
+_ultimo_backup: Dict[str, float] = {}
+
+
+def _fai_backup(filename: str):
+    """
+    Conserva una copia del file prima di sovrascriverlo.
+
+    Tiene le ultime COPIE_BACKUP versioni, al massimo una all'ora per file,
+    così una modifica sbagliata o un file corrotto non sono definitivi.
+    """
+    percorso = _path(filename)
+    if not os.path.exists(percorso):
+        return
+    adesso = time.time()
+    if adesso - _ultimo_backup.get(filename, 0) < INTERVALLO_BACKUP:
+        return
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        base = os.path.splitext(filename)[0]
+        marca = datetime.now().strftime("%Y%m%d-%H%M%S")
+        shutil.copy2(percorso, os.path.join(BACKUP_DIR, f"{base}_{marca}.xlsx"))
+        _ultimo_backup[filename] = adesso
+
+        # Elimina le copie più vecchie oltre il limite
+        copie = sorted(
+            f for f in os.listdir(BACKUP_DIR)
+            if f.startswith(f"{base}_") and f.endswith(".xlsx")
+        )
+        for vecchia in copie[:-COPIE_BACKUP]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, vecchia))
+            except OSError:
+                pass
+    except Exception as e:
+        print(f"[backup] Impossibile salvare la copia di {filename}: {e}")
+
+
 def _save_wb(wb: openpyxl.Workbook, filename: str):
-    wb.save(_path(filename))
+    """
+    Salvataggio atomico: scrive su un file temporaneo e solo a scrittura
+    completata lo rinomina al posto dell'originale.
+
+    Con il salvataggio diretto, un'interruzione a metà (PC spento, processo
+    terminato) lasciava il file troncato e i dati dentro erano persi.
+    Il rename è un'operazione atomica del filesystem: o c'è il file vecchio
+    integro, o c'è quello nuovo completo. Mai una via di mezzo.
+    """
+    percorso = _path(filename)
+    _fai_backup(filename)
+
+    fd, temporaneo = tempfile.mkstemp(dir=os.path.dirname(percorso) or ".",
+                                      prefix=f".{filename}.", suffix=".tmp")
+    os.close(fd)
+    try:
+        wb.save(temporaneo)
+        os.replace(temporaneo, percorso)   # atomico anche su Windows
+    except Exception:
+        try:
+            os.remove(temporaneo)
+        except OSError:
+            pass
+        raise
 
 
 def _next_id(rows: list) -> int:
