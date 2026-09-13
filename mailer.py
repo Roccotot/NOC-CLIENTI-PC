@@ -23,6 +23,12 @@ import traceback
 from email.message import EmailMessage
 from email.utils import formataddr
 
+from config import carica_env
+
+# Le impostazioni si leggono qui sotto, quindi il .env va caricato prima:
+# così il modulo funziona anche se importato per conto suo.
+carica_env()
+
 SMTP_HOST     = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT     = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER     = os.environ.get("SMTP_USER", "").strip()

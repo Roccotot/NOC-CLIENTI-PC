@@ -10,28 +10,9 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
-def _carica_env() -> None:
-    """Carica le variabili dal file .env (se presente) senza dipendenze esterne."""
-    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if not os.path.isfile(percorso):
-        return
-    try:
-        with open(percorso, encoding="utf-8") as f:
-            for riga in f:
-                riga = riga.strip()
-                if not riga or riga.startswith("#") or "=" not in riga:
-                    continue
-                chiave, _, valore = riga.partition("=")
-                chiave = chiave.strip()
-                valore = valore.strip().strip('"').strip("'")
-                # Le variabili di sistema hanno la precedenza sul file
-                if chiave and chiave not in os.environ:
-                    os.environ[chiave] = valore
-    except Exception as e:
-        print(f"[env] Impossibile leggere .env: {e}")
+from config import carica_env
 
-
-_carica_env()
+carica_env()
 
 try:
     from reportlab.lib.pagesizes import A4
