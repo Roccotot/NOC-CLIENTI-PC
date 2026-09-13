@@ -9,7 +9,6 @@ Chiede i dati della casella (la password non viene mai mostrata a schermo
 né salvata nella cronologia dei comandi), scrive il file .env e invia
 subito una mail di prova per verificare che tutto funzioni.
 """
-import getpass
 import os
 import smtplib
 import ssl
@@ -27,7 +26,8 @@ GESTORI = {
     "3": ("Google Workspace / Gmail", "smtp.gmail.com",     587, False),
     "4": ("Microsoft 365 / Outlook",  "smtp.office365.com", 587, False),
     "5": ("MCLink",                   "smtp.mclink.it",     465, True),
-    "6": ("Altro (inserisco a mano)", None,                 None, None),
+    "6": ("MCLink su porta 587",      "smtp.mclink.it",     587, False),
+    "7": ("Altro (inserisco a mano)", None,                 None, None),
 }
 
 
@@ -109,9 +109,10 @@ def main() -> int:
         print(f"Hai scritto: {utente}")
         return 1
 
-    print("\nPassword di quella casella — mentre digiti non vedrai nulla")
-    print("sullo schermo: e' normale, sta scrivendo lo stesso.")
-    password = getpass.getpass("Password: ")
+    print("\nPassword di quella casella.")
+    print("(Viene mostrata mentre la digiti, cosi' controlli di non sbagliare:")
+    print(" assicurati che nessuno stia guardando lo schermo.)")
+    password = input("Password: ").strip()
     if not password:
         print("\nERRORE: la password è obbligatoria.")
         return 1
