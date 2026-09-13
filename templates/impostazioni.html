@@ -79,11 +79,24 @@
 
           <div class="form-check mb-2">
             <input class="form-check-input" type="radio" name="metodo_invio" value="smtp"
-                   id="m-smtp" {% if imp.metodo_invio != 'web' %}checked{% endif %}>
+                   id="m-smtp" {% if imp.metodo_invio not in ['web', 'blat'] %}checked{% endif %}>
             <label class="form-check-label" for="m-smtp">
               <strong>Server di posta (SMTP)</strong>
               <div style="font-size:.78rem; color:var(--text-3);">
                 Il modo classico. Richiede che le porte 465 o 587 non siano bloccate.
+              </div>
+            </label>
+          </div>
+
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="metodo_invio" value="blat"
+                   id="m-blat" {% if imp.metodo_invio == 'blat' %}checked{% endif %}>
+            <label class="form-check-label" for="m-blat">
+              <strong>blat.exe</strong>
+              <div style="font-size:.78rem; color:var(--text-3);">
+                Usa comunque SMTP, ma affidandolo a un programma esterno.
+                Da provare se l'antivirus blocca Python ma lascia passare
+                altri programmi, o se funziona la porta 25 e non la 465.
               </div>
             </label>
           </div>
@@ -137,6 +150,16 @@
               <input type="text" name="smtp_password" class="form-control"
                      placeholder="{% if imp.smtp_password %}••••••  (lascia vuoto per non cambiarla){% else %}password della casella{% endif %}"
                      autocomplete="off">
+            </div>
+
+            <div class="col-12" id="riga-blat">
+              <label class="form-label">Percorso di blat.exe</label>
+              <input type="text" name="blat_path" class="form-control"
+                     value="{{ imp.blat_path }}" placeholder="C:\\blat\\blat.exe" autocomplete="off">
+              <div style="font-size:.75rem; color:var(--text-3);">
+                Server, porta, utente e password sono quelli qui sopra.
+                Con blat si usa di solito la porta <strong>25</strong> senza SSL.
+              </div>
             </div>
           </div>
         </div>
@@ -259,12 +282,16 @@
   <script>
     // Mostra solo il blocco che serve al metodo scelto
     function aggiornaBlocchi() {
-      var web = document.getElementById('m-web').checked;
+      var web  = document.getElementById('m-web').checked;
+      var blat = document.getElementById('m-blat').checked;
+      // blat usa gli stessi dati del server di posta, piu' il percorso
       document.getElementById('blocco-web').style.display  = web ? '' : 'none';
       document.getElementById('blocco-smtp').style.display = web ? 'none' : '';
+      document.getElementById('riga-blat').style.display   = blat ? '' : 'none';
     }
-    document.getElementById('m-smtp').addEventListener('change', aggiornaBlocchi);
-    document.getElementById('m-web').addEventListener('change', aggiornaBlocchi);
+    ['m-smtp','m-blat','m-web'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', aggiornaBlocchi);
+    });
     aggiornaBlocchi();
   </script>
 </body>

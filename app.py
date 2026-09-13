@@ -591,6 +591,7 @@ def impostazioni_notifiche():
             "pop3_ssl":      "1" if request.form.get("pop3_ssl") else "0",
             "pop3_user":     request.form.get("pop3_user", ""),
             "pop3_password": request.form.get("pop3_password", ""),
+            "blat_path":     request.form.get("blat_path", ""),
             "api_key":       request.form.get("api_key", ""),
             "notify_email":  request.form.get("notify_email", ""),
             "app_base_url":  request.form.get("app_base_url", ""),
@@ -647,6 +648,9 @@ def _spiega_errore_invio(e: Exception) -> str:
         return "il nome del server non esiste: controlla di averlo scritto giusto."
     if "Connection refused" in testo:
         return "il server rifiuta la connessione su quella porta: controlla il numero di porta."
+    # I messaggi che scriviamo noi sono gia' in italiano: mostrali cosi' come sono
+    if tipo in ("RuntimeError", "ValueError"):
+        return testo[:300]
     return f"{tipo}: {testo[:200]}"
 
 
