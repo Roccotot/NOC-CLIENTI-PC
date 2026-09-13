@@ -25,7 +25,7 @@ _lock = threading.Lock()
 
 # chiave interna -> variabile d'ambiente equivalente
 DA_AMBIENTE = {
-    "metodo_invio":   "METODO_INVIO",      # "smtp" oppure "web"
+    "metodo_invio":   "METODO_INVIO",      # "smtp", "blat" oppure "web"
     "smtp_host":      "SMTP_HOST",
     "smtp_port":      "SMTP_PORT",
     "smtp_ssl":       "SMTP_SSL",
@@ -37,6 +37,7 @@ DA_AMBIENTE = {
     "pop3_ssl":       "POP3_SSL",          # le credenziali siano giuste
     "pop3_user":      "POP3_USER",
     "pop3_password":  "POP3_PASSWORD",
+    "blat_path":      "BLAT_PATH",         # percorso di blat.exe (solo Windows)
     "api_key":        "EMAIL_API_KEY",     # chiave del servizio web (Brevo)
     "notify_email":   "NOTIFY_EMAIL",
     "app_base_url":   "APP_BASE_URL",
@@ -44,6 +45,7 @@ DA_AMBIENTE = {
 
 PREDEFINITI = {
     "metodo_invio":  "smtp",
+    "blat_path":     "blat.exe",
     "smtp_port":     "465",
     "smtp_ssl":      "1",
     "pop3_port":     "995",
@@ -128,6 +130,9 @@ def configurato() -> bool:
     imp = tutte()
     if not imp.get("notify_email"):
         return False
-    if imp.get("metodo_invio") == "web":
-        return bool(imp.get("api_key") and imp.get("smtp_from") or imp.get("smtp_user"))
+    metodo = imp.get("metodo_invio")
+    if metodo == "web":
+        return bool(imp.get("api_key") and (imp.get("smtp_from") or imp.get("smtp_user")))
+    if metodo == "blat":
+        return bool(imp.get("blat_path") and imp.get("smtp_host") and imp.get("smtp_user"))
     return bool(imp.get("smtp_host") and imp.get("smtp_user"))
