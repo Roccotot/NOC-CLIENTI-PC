@@ -1,12 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, abort, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import os
 import io
 import re
-import socket
-import subprocess
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -345,50 +343,6 @@ def update_ticket(problem_id):
     if nuovo_stato == "Chiuso":
         return redirect(url_for("closed_tickets"))
     return redirect(url_for("ticket_detail", problem_id=p.id))
-
-
-# --- API PING (solo admin) ---
-@app.route("/api/ping/<ip>")
-def api_ping(ip):
-    if "user_id" not in session or session.get("role") != "admin":
-        return jsonify(ok=False), 403
-    if not re.match(r'^[\d.]+$', ip):
-        return jsonify(ok=False), 400
-    try:
-        result = subprocess.run(
-            ["ping", "-c", "1", "-W", "1", ip],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=3
-        )
-        return jsonify(ok=(result.returncode == 0))
-    except Exception:
-        return jsonify(ok=False)
-
-
-@app.route("/api/check-port/<ip>/<int:port>")
-def api_check_port(ip, port):
-    if "user_id" not in session or session.get("role") != "admin":
-        return jsonify(ok=False), 403
-    if not re.match(r'^[\d.]+$', ip):
-        return jsonify(ok=False), 400
-    try:
-        s = socket.create_connection((ip, port), timeout=3)
-        s.close()
-        return jsonify(ok=True)
-    except Exception:
-        return jsonify(ok=False)
-
-
-# --- NOC DISPOSITIVI (solo admin) ---
-@app.route("/dispositivi")
-def noc_devices():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    if session.get("role") != "admin":
-        flash("Accesso riservato agli amministratori.", "danger")
-        return redirect(url_for("dashboard"))
-    return render_template("noc_devices.html")
 
 
 # --- ARCHIVIO TICKET CHIUSI ---
