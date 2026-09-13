@@ -32,11 +32,6 @@ DA_AMBIENTE = {
     "smtp_user":      "SMTP_USER",
     "smtp_password":  "SMTP_PASSWORD",
     "smtp_from":      "SMTP_FROM",
-    "pop3_host":      "POP3_HOST",         # posta in arrivo: non usata per
-    "pop3_port":      "POP3_PORT",         # inviare, serve a verificare che
-    "pop3_ssl":       "POP3_SSL",          # le credenziali siano giuste
-    "pop3_user":      "POP3_USER",
-    "pop3_password":  "POP3_PASSWORD",
     "blat_path":      "BLAT_PATH",         # percorso di blat.exe (solo Windows)
     "api_key":        "EMAIL_API_KEY",     # chiave del servizio web (Brevo)
     "notify_email":   "NOTIFY_EMAIL",
@@ -48,8 +43,6 @@ PREDEFINITI = {
     "blat_path":     "blat.exe",
     "smtp_port":     "465",
     "smtp_ssl":      "1",
-    "pop3_port":     "995",
-    "pop3_ssl":      "1",
     "notify_email":  "assistenza@sigrafilm.it",
 }
 
@@ -101,8 +94,7 @@ def salva(nuove: dict) -> None:
         for chiave, valore in nuove.items():
             if chiave not in DA_AMBIENTE:
                 continue
-            if chiave in ("smtp_password", "api_key", "pop3_password") \
-                    and not str(valore).strip():
+            if chiave in ("smtp_password", "api_key") and not str(valore).strip():
                 continue          # non sovrascrivere con vuoto
             correnti[chiave] = str(valore).strip()
 

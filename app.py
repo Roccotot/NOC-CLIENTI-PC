@@ -586,23 +586,11 @@ def impostazioni_notifiche():
             # vuoto = lascia quella già salvata
             "smtp_password": request.form.get("smtp_password", ""),
             "smtp_from":     request.form.get("smtp_from", ""),
-            "pop3_host":     request.form.get("pop3_host", ""),
-            "pop3_port":     request.form.get("pop3_port", ""),
-            "pop3_ssl":      "1" if request.form.get("pop3_ssl") else "0",
-            "pop3_user":     request.form.get("pop3_user", ""),
-            "pop3_password": request.form.get("pop3_password", ""),
             "blat_path":     request.form.get("blat_path", ""),
             "api_key":       request.form.get("api_key", ""),
             "notify_email":  request.form.get("notify_email", ""),
             "app_base_url":  request.form.get("app_base_url", ""),
         })
-
-        if azione == "verifica_pop3":
-            try:
-                flash(mailer.verifica_credenziali_pop3(), "success")
-            except Exception as e:
-                flash(f"Verifica fallita: {_spiega_errore_invio(e)}", "danger")
-            return redirect(url_for("impostazioni_notifiche"))
 
         if azione == "prova":
             if not impostazioni.configurato():

@@ -181,45 +181,6 @@ def _invia_blat(imp, subject, html, testo, destinatario):
             pass
 
 
-def verifica_credenziali_pop3() -> str:
-    """
-    Prova ad accedere alla casella in lettura (POP3).
-
-    Non serve a ricevere posta — il sito non la legge — ma a capire se un
-    fallimento dell'invio dipende dalle credenziali o solo dalla porta SMTP
-    bloccata: il POP3 usa le stesse credenziali su una porta diversa.
-    Restituisce un messaggio da mostrare all'utente.
-    """
-    import poplib
-
-    imp = impostazioni.tutte()
-    host = imp.get("pop3_host", "").strip()
-    if not host:
-        raise ValueError("Compila prima il server POP3.")
-
-    porta = int(imp.get("pop3_port") or 995)
-    utente = imp.get("pop3_user") or imp.get("smtp_user") or ""
-    password = imp.get("pop3_password") or imp.get("smtp_password") or ""
-    if not utente or not password:
-        raise ValueError("Servono utente e password (anche quelli SMTP vanno bene).")
-
-    if str(imp.get("pop3_ssl", "")).strip() in ("1", "true", "yes"):
-        m = poplib.POP3_SSL(host, porta, timeout=TIMEOUT)
-    else:
-        m = poplib.POP3(host, porta, timeout=TIMEOUT)
-    try:
-        m.user(utente)
-        m.pass_(password)
-        quanti = len(m.list()[1])
-        return (f"Accesso riuscito: la casella «{utente}» risponde e contiene "
-                f"{quanti} messaggi. Le credenziali sono corrette.")
-    finally:
-        try:
-            m.quit()
-        except Exception:
-            pass
-
-
 def invia_adesso(subject: str, html: str, testo: str, destinatario: str = "") -> None:
     """
     Invio immediato e bloccante, senza catturare gli errori.
