@@ -25,8 +25,8 @@ GESTORI = {
     "2": ("Register.it",              "authsmtp.register.it", 465, True),
     "3": ("Google Workspace / Gmail", "smtp.gmail.com",     587, False),
     "4": ("Microsoft 365 / Outlook",  "smtp.office365.com", 587, False),
-    "5": ("MCLink",                   "smtp.mclink.it",     465, True),
-    "6": ("MCLink su porta 587",      "smtp.mclink.it",     587, False),
+    "5": ("MC-link",                  "mail.mclink.it",     465, True),
+    "6": ("MC-link su porta 587",     "mail.mclink.it",     587, False),
     "7": ("Altro (inserisco a mano)", None,                 None, None),
 }
 
