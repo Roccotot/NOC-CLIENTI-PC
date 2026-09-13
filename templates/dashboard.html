@@ -119,6 +119,7 @@
         <div class="card-title">Segnala problema</div>
         {% if cinemas %}
         <form method="post" action="{{ url_for('add_problem') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="row g-2 align-items-end">
             <div class="col-6 col-md">
               <label class="form-label mb-1">Città</label>
@@ -181,35 +182,52 @@
     <!-- Heading + Filtri -->
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
       <h2 class="page-heading mb-0">Problemi
-        {% if filter_urgenza or filter_stato %}
-          <small>(filtrati)</small>
+        {% if filter_urgenza or filter_stato or ricerca %}
+          <small>({{ problems|length }} risultat{{ "o" if problems|length == 1 else "i" }})</small>
         {% endif %}
       </h2>
       <div class="filter-bar">
         <!-- Filtro stato -->
-        <a href="?filter_stato=&filter_urgenza={{ filter_urgenza }}"
+        <a href="?filter_stato=&filter_urgenza={{ filter_urgenza }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-all {% if not filter_stato %}active{% endif %}">Tutti</a>
-        <a href="?filter_stato=Aperto&filter_urgenza={{ filter_urgenza }}"
+        <a href="?filter_stato=Aperto&filter_urgenza={{ filter_urgenza }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-aperto {% if filter_stato == 'Aperto' %}active{% endif %}">Aperto</a>
-        <a href="?filter_stato=In+corso&filter_urgenza={{ filter_urgenza }}"
+        <a href="?filter_stato=In+corso&filter_urgenza={{ filter_urgenza }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-in-corso {% if filter_stato == 'In corso' %}active{% endif %}">In corso</a>
         <span class="filter-divider">·</span>
 
         <!-- Filtro urgenza -->
-        <a href="?filter_urgenza=&filter_stato={{ filter_stato }}"
+        <a href="?filter_urgenza=&filter_stato={{ filter_stato }}&q={{ ricerca|urlencode }}"
           class="filter-pill {% if not filter_urgenza %}active{% endif %}">Tutte</a>
-        <a href="?filter_urgenza=Critico&filter_stato={{ filter_stato }}"
+        <a href="?filter_urgenza=Critico&filter_stato={{ filter_stato }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-critico {% if filter_urgenza == 'Critico' %}active{% endif %}">Critico</a>
-        <a href="?filter_urgenza=Urgente&filter_stato={{ filter_stato }}"
+        <a href="?filter_urgenza=Urgente&filter_stato={{ filter_stato }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-urgente {% if filter_urgenza == 'Urgente' %}active{% endif %}">Urgente</a>
-        <a href="?filter_urgenza=Non+urgente&filter_stato={{ filter_stato }}"
+        <a href="?filter_urgenza=Non+urgente&filter_stato={{ filter_stato }}&q={{ ricerca|urlencode }}"
           class="filter-pill filter-pill-non-urgente {% if filter_urgenza == 'Non urgente' %}active{% endif %}">Non urgente</a>
 
-        {% if filter_urgenza or filter_stato %}
+        {% if filter_urgenza or filter_stato or ricerca %}
           <a href="?" class="filter-pill" style="color:var(--red); border-color:rgba(248,81,73,.3);">✕ Reset</a>
         {% endif %}
       </div>
     </div>
+
+
+    <!-- Ricerca -->
+    <form method="get" class="mb-3">
+      <input type="hidden" name="filter_stato"   value="{{ filter_stato }}">
+      <input type="hidden" name="filter_urgenza" value="{{ filter_urgenza }}">
+      <div class="input-group">
+        <input type="search" name="q" value="{{ ricerca }}" autocomplete="off"
+          class="form-control"
+          placeholder="Cerca per cinema, citta, sala, descrizione, autore o numero (#12)...">
+        <button type="submit" class="btn btn-outline-light">Cerca</button>
+        {% if ricerca %}
+          <a href="?filter_stato={{ filter_stato }}&filter_urgenza={{ filter_urgenza }}"
+             class="btn btn-outline-secondary" title="Azzera la ricerca">&times;</a>
+        {% endif %}
+      </div>
+    </form>
 
     <!-- Tabella problemi -->
     {% if problems %}
@@ -300,6 +318,7 @@
                   <form method="post"
                     action="{{ url_for('delete_problem', problem_id=p.id) }}"
                     class="d-inline d-none d-md-inline">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-secondary"
                       onclick="return confirm('Archiviare questo ticket?')">🗄</button>
                   </form>

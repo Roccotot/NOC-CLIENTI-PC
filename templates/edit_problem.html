@@ -47,6 +47,7 @@
     <div class="card shadow-sm">
       <div class="card-body">
         <form method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label">Cinema</label>
             <select name="cinema" class="form-select" required>

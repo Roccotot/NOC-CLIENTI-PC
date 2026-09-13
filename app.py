@@ -5,32 +5,14 @@ from datetime import datetime, date
 import os
 import io
 import re
+import secrets
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
 
-def _carica_env() -> None:
-    """Carica le variabili dal file .env (se presente) senza dipendenze esterne."""
-    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if not os.path.isfile(percorso):
-        return
-    try:
-        with open(percorso, encoding="utf-8") as f:
-            for riga in f:
-                riga = riga.strip()
-                if not riga or riga.startswith("#") or "=" not in riga:
-                    continue
-                chiave, _, valore = riga.partition("=")
-                chiave = chiave.strip()
-                valore = valore.strip().strip('"').strip("'")
-                # Le variabili di sistema hanno la precedenza sul file
-                if chiave and chiave not in os.environ:
-                    os.environ[chiave] = valore
-    except Exception as e:
-        print(f"[env] Impossibile leggere .env: {e}")
+from config import carica_env
 
-
-_carica_env()
+carica_env()
 
 try:
     from reportlab.lib.pagesizes import A4
@@ -44,14 +26,87 @@ except ImportError:
 from storage import store
 import mailer
 
+def _chiave_segreta() -> str:
+    """
+    Chiave usata per firmare i cookie di sessione.
+
+    Ordine: variabile d'ambiente SECRET_KEY -> file .secret_key -> generata.
+    Una chiave prevedibile permetterebbe di falsificare i cookie ed entrare
+    come amministratore, quindi non esiste più un valore di default.
+    La chiave viene salvata su file così le sessioni sopravvivono ai riavvii.
+    """
+    chiave = os.environ.get("SECRET_KEY", "").strip()
+    if chiave:
+        return chiave
+
+    percorso = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
+    if os.path.isfile(percorso):
+        try:
+            with open(percorso, encoding="utf-8") as f:
+                chiave = f.read().strip()
+            if chiave:
+                return chiave
+        except Exception as e:
+            print(f"[chiave] Impossibile leggere .secret_key: {e}")
+
+    chiave = secrets.token_hex(32)
+    try:
+        with open(percorso, "w", encoding="utf-8") as f:
+            f.write(chiave)
+        try:
+            os.chmod(percorso, 0o600)  # su Windows viene ignorato
+        except OSError:
+            pass
+        print("[chiave] Generata una nuova SECRET_KEY in .secret_key")
+    except Exception as e:
+        print(f"[chiave] ATTENZIONE: chiave solo in memoria, i login "
+              f"si perderanno a ogni riavvio ({e})")
+    return chiave
+
+
 # --- CONFIGURAZIONE ---
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "devsecret-change-me")
+app.secret_key = _chiave_segreta()
+
+# Cookie di sessione più difficili da rubare
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,   # non leggibile da JavaScript
+    SESSION_COOKIE_SAMESITE="Lax",  # non inviato da siti terzi
+    # Attivare solo quando il sito sarà servito in HTTPS, altrimenti il
+    # cookie non viene inviato e il login smette di funzionare.
+    SESSION_COOKIE_SECURE=os.environ.get("HTTPS_ATTIVO", "").strip() in ("1", "true", "yes"),
+)
 ALLEGATI_FOLDER = os.path.join(os.path.dirname(__file__), "allegati")
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp",
                       "doc", "docx", "xls", "xlsx", "txt", "zip", "mp4", "mov", "avi"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 os.makedirs(ALLEGATI_FOLDER, exist_ok=True)
+
+def _cinema_utente() -> list[str]:
+    """
+    Nomi dei cinema assegnati all'utente collegato.
+
+    Serve a far vedere a chi lavora nello stesso cinema gli stessi ticket:
+    prima la visibilità era solo per autore, quindi due account dello stesso
+    cinema non vedevano i ticket l'uno dell'altro.
+    """
+    if session.get("role") == "admin":
+        return []          # l'admin vede tutto, nessun filtro
+    ids = store.get_cinema_ids_for_user(session.get("user_id"))
+    if not ids:
+        return []
+    return [c.nome for c in store.get_cinemas_by_ids(ids)]
+
+
+def _puo_vedere(p) -> bool:
+    """True se l'utente collegato può vedere/modificare il ticket `p`."""
+    if session.get("role") == "admin":
+        return True
+    if session.get("username") == p.autore:
+        return True
+    suoi = {n.strip().lower() for n in _cinema_utente()}
+    return bool(suoi) and (p.cinema or "").strip().lower() in suoi
+
 
 def _cinema_folder(cinema_nome: str) -> str:
     """Sanitizza il nome cinema per usarlo come cartella."""
@@ -70,6 +125,49 @@ def _get_allegati(cinema_nome: str, ticket_id: int) -> list[dict]:
             files.append({"filename": fname, "original": original,
                           "cinema_folder": _cinema_folder(cinema_nome)})
     return files
+
+# ── PROTEZIONE CSRF ────────────────────────────────────────────
+# Senza questa protezione, una pagina malevola aperta da un utente già
+# loggato può inviare form al sito a sua insaputa (cancellare ticket,
+# eliminare utenti...). Ogni form include un gettone segreto legato alla
+# sessione: le richieste che non lo portano vengono rifiutate.
+
+def _gettone_csrf() -> str:
+    """Gettone della sessione corrente, creato al primo utilizzo."""
+    if "_csrf" not in session:
+        session["_csrf"] = secrets.token_urlsafe(32)
+    return session["_csrf"]
+
+
+@app.context_processor
+def _inietta_csrf():
+    """Rende disponibile csrf_token() in tutti i template."""
+    return {"csrf_token": _gettone_csrf}
+
+
+@app.before_request
+def _verifica_csrf():
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    atteso = session.get("_csrf")
+    inviato = request.form.get("_csrf") or request.headers.get("X-CSRF-Token", "")
+    if not atteso or not secrets.compare_digest(str(atteso), str(inviato)):
+        app.logger.warning("Richiesta rifiutata per gettone CSRF mancante o errato: %s",
+                           request.path)
+        abort(400, description="Sessione scaduta o richiesta non valida. "
+                               "Ricarica la pagina e riprova.")
+    return None
+
+
+@app.errorhandler(400)
+def _errore_400(e):
+    """Messaggio comprensibile al posto della pagina di errore grezza."""
+    if "user_id" in session:
+        flash("Sessione scaduta o richiesta non valida. Riprova.", "warning")
+        return redirect(url_for("dashboard"))
+    flash("Sessione scaduta. Accedi di nuovo.", "warning")
+    return redirect(url_for("login"))
+
 
 # Inizializza file Excel e dati di default
 store.seed()
@@ -101,18 +199,11 @@ def login():
     return render_template("login.html")
 
 
-# --- RESET ADMIN (emergenza) ---
-@app.route("/reset-admin-password-7x9k")
-def reset_admin_password():
-    u = store.get_user_by_username("admin")
-    if u:
-        u.password_hash = generate_password_hash("admin1234")
-        u.password_plain = "admin1234"
-        u.role = "admin"
-        store.update_user(u)
-        return "Password admin resettata a 'admin1234'."
-    store.create_user("admin", generate_password_hash("admin1234"), "admin1234", "admin")
-    return "Utente admin ricreato con password 'admin1234'."
+# NOTA: la vecchia route "/reset-admin-password-7x9k" è stata rimossa.
+# Permetteva a CHIUNQUE, senza autenticazione, di reimpostare la password
+# admin a un valore noto e prendere il controllo del sito.
+# Per un reset d'emergenza usare da riga di comando sul PC del server:
+#     python reset_admin.py
 
 
 # --- LOGOUT ---
@@ -131,18 +222,26 @@ def dashboard():
 
     filter_urgenza = request.args.get("filter_urgenza", "")
     filter_stato   = request.args.get("filter_stato", "")
+    ricerca        = request.args.get("q", "").strip()
     uid = session["user_id"]
+
+    e_admin     = session["role"] == "admin"
+    mio_autore  = None if e_admin else session["username"]
+    miei_cinema = None if e_admin else _cinema_utente()
 
     problems = store.get_problems_filtered(
         stato_ne="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=mio_autore,
+        cinemas=miei_cinema,
         urgenza=filter_urgenza or None,
         stato_eq=filter_stato or None,
+        ricerca=ricerca or None,
     )
 
     all_open = store.get_problems_filtered(
         stato_ne="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=mio_autore,
+        cinemas=miei_cinema,
     )
     stats = {
         "total":    len(all_open),
@@ -160,11 +259,14 @@ def dashboard():
     cinemas.sort(key=lambda c: c.nome)
     single_cinema = cinemas[0] if len(cinemas) == 1 else None
 
-    # Contatori messaggi non letti
+    # Contatori messaggi non letti.
+    # I commenti si leggono UNA volta sola e si raggruppano: prima si
+    # rileggeva l'intero file per ogni ticket in elenco.
     reads = store.get_reads_by_user(uid)
+    commenti_per_ticket = store.get_comments_grouped()
     chat_info = {}
     for p in problems:
-        comments = store.get_comments(p.id)
+        comments = commenti_per_ticket.get(p.id, [])
         total = len(comments)
         last_read = reads.get(p.id)
         if last_read is None:
@@ -180,6 +282,7 @@ def dashboard():
         "dashboard.html",
         problems=problems,
         filter_urgenza=filter_urgenza,
+        ricerca=ricerca,
         filter_stato=filter_stato,
         stats=stats,
         cinemas=cinemas,
@@ -197,7 +300,7 @@ def ticket_detail(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     comments = store.get_comments(p.id)
     allegati = _get_allegati(p.cinema, p.id)
@@ -213,14 +316,19 @@ def add_comment(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     testo = request.form.get("testo", "").strip()
     if testo:
         store.add_comment(p.id, session["username"], session["role"], testo)
-        # Notifica solo se scrive un cliente (non un admin)
         if session["role"] != "admin":
+            # Scrive un cliente -> avvisa l'assistenza
             mailer.notifica_nuovo_messaggio(p, session["username"], testo)
+        else:
+            # Risponde l'assistenza -> avvisa il cliente che ha aperto il ticket
+            cliente = store.get_user_by_username(p.autore)
+            if cliente and cliente.email:
+                mailer.notifica_risposta_al_cliente(p, cliente.email, testo)
     return redirect(url_for("ticket_detail", problem_id=p.id) + "#chat-bottom")
 
 
@@ -232,7 +340,7 @@ def upload_allegato(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     f = request.files.get("allegato")
     if not f or not f.filename:
@@ -279,7 +387,7 @@ def download_allegato(cinema_folder, filename):
     try:
         ticket_id = int(safe_file.split("_")[0])
         p = store.get_problem_by_id(ticket_id)
-        if p and session["role"] != "admin" and session["username"] != p.autore:
+        if p and not _puo_vedere(p):
             return "Accesso negato", 403
     except (ValueError, IndexError):
         if session["role"] != "admin":
@@ -306,7 +414,7 @@ def delete_allegato(cinema_folder, filename):
     if session["role"] != "admin":
         if ticket_id:
             p = store.get_problem_by_id(ticket_id)
-            if not p or session["username"] != p.autore:
+            if not p or not _puo_vedere(p):
                 return "Accesso negato", 403
         else:
             return "Accesso negato", 403
@@ -326,7 +434,7 @@ def update_ticket(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     nuovo_stato   = request.form.get("stato", p.stato)
     nuova_urgenza = request.form.get("urgenza", p.urgenza)
@@ -350,11 +458,32 @@ def update_ticket(problem_id):
 def closed_tickets():
     if "user_id" not in session:
         return redirect(url_for("login"))
-    problems = store.get_problems_filtered(
+    e_admin = session["role"] == "admin"
+    ricerca = request.args.get("q", "").strip()
+    try:
+        pagina = max(1, int(request.args.get("p", "1")))
+    except ValueError:
+        pagina = 1
+
+    tutti = store.get_problems_filtered(
         stato_eq="Chiuso",
-        autore=session["username"] if session["role"] != "admin" else None,
+        autore=None if e_admin else session["username"],
+        cinemas=None if e_admin else _cinema_utente(),
+        ricerca=ricerca or None,
     )
-    return render_template("closed_tickets.html", problems=problems)
+
+    # Paginazione: l'archivio cresce senza limite, caricarlo tutto
+    # in una pagina sola diventa presto impraticabile.
+    per_pagina = 50
+    totale  = len(tutti)
+    pagine  = max(1, (totale + per_pagina - 1) // per_pagina)
+    pagina  = min(pagina, pagine)
+    inizio  = (pagina - 1) * per_pagina
+    problems = tutti[inizio:inizio + per_pagina]
+
+    return render_template("closed_tickets.html", problems=problems,
+                           ricerca=ricerca, pagina=pagina, pagine=pagine,
+                           totale=totale)
 
 
 # --- AGGIUNGI PROBLEMA ---
@@ -390,7 +519,7 @@ def edit_problem(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     if request.method == "POST":
         p.cinema  = request.form.get("cinema", p.cinema)
@@ -412,7 +541,7 @@ def delete_problem(problem_id):
     p = store.get_problem_by_id(problem_id)
     if not p:
         abort(404)
-    if session["role"] != "admin" and session["username"] != p.autore:
+    if not _puo_vedere(p):
         return "Accesso negato", 403
     p.stato = "Chiuso"
     store.update_problem(p)
@@ -453,7 +582,7 @@ def admin_users():
             flash("Username già in uso.", "warning")
             return redirect(url_for("admin_users"))
         nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
-                                  password_plain=password, role=role, telefono=telefono, email=email)
+                                  role=role, telefono=telefono, email=email)
         # Cinema selezionati nel form (solo per utenti non admin: gli admin vedono tutto)
         cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
         if role != "admin" and cinema_ids:
@@ -501,8 +630,7 @@ def reset_password(user_id):
     u = store.get_user_by_id(user_id)
     if not u:
         abort(404)
-    u.password_hash  = generate_password_hash(new_password)
-    u.password_plain = new_password
+    u.password_hash = generate_password_hash(new_password)
     store.update_user(u)
     flash(f"Password di '{u.username}' aggiornata con successo.", "success")
     return redirect(url_for("admin_users"))

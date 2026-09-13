@@ -247,6 +247,7 @@
       <div class="card-body">
         <div class="card-title">Aggiungi cinema</div>
         <form method="post">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <div class="row g-2">
             <div class="col-12 col-md-4">
               <input type="text" name="nome" class="form-control" placeholder="Nome cinema" required autocomplete="off">
@@ -330,6 +331,7 @@
                     action="{{ url_for('delete_cinema', cinema_id=c.id) }}"
                     class="d-inline"
                     onsubmit="return confirm('Eliminare {{ c.nome }}?')">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-danger">🗑</button>
                   </form>
                 </td>

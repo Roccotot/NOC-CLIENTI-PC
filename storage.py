@@ -12,7 +12,10 @@ Struttura cartella data/:
 """
 
 import os
+import shutil
+import tempfile
 import threading
+import time
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
@@ -37,7 +40,6 @@ class User:
     id: int
     username: str
     password_hash: str
-    password_plain: str = ""
     role: str = "user"
     telefono: str = ""
     email: str = ""
@@ -184,8 +186,72 @@ def _write_header(ws, headers: list):
         cell.alignment = Alignment(horizontal="center")
 
 
+BACKUP_DIR = os.path.join(DATA_DIR, "backup")
+COPIE_BACKUP = 10          # quante copie tenere per ogni file
+INTERVALLO_BACKUP = 3600   # secondi minimi tra due backup dello stesso file
+
+_ultimo_backup: Dict[str, float] = {}
+
+
+def _fai_backup(filename: str):
+    """
+    Conserva una copia del file prima di sovrascriverlo.
+
+    Tiene le ultime COPIE_BACKUP versioni, al massimo una all'ora per file,
+    così una modifica sbagliata o un file corrotto non sono definitivi.
+    """
+    percorso = _path(filename)
+    if not os.path.exists(percorso):
+        return
+    adesso = time.time()
+    if adesso - _ultimo_backup.get(filename, 0) < INTERVALLO_BACKUP:
+        return
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        base = os.path.splitext(filename)[0]
+        marca = datetime.now().strftime("%Y%m%d-%H%M%S")
+        shutil.copy2(percorso, os.path.join(BACKUP_DIR, f"{base}_{marca}.xlsx"))
+        _ultimo_backup[filename] = adesso
+
+        # Elimina le copie più vecchie oltre il limite
+        copie = sorted(
+            f for f in os.listdir(BACKUP_DIR)
+            if f.startswith(f"{base}_") and f.endswith(".xlsx")
+        )
+        for vecchia in copie[:-COPIE_BACKUP]:
+            try:
+                os.remove(os.path.join(BACKUP_DIR, vecchia))
+            except OSError:
+                pass
+    except Exception as e:
+        print(f"[backup] Impossibile salvare la copia di {filename}: {e}")
+
+
 def _save_wb(wb: openpyxl.Workbook, filename: str):
-    wb.save(_path(filename))
+    """
+    Salvataggio atomico: scrive su un file temporaneo e solo a scrittura
+    completata lo rinomina al posto dell'originale.
+
+    Con il salvataggio diretto, un'interruzione a metà (PC spento, processo
+    terminato) lasciava il file troncato e i dati dentro erano persi.
+    Il rename è un'operazione atomica del filesystem: o c'è il file vecchio
+    integro, o c'è quello nuovo completo. Mai una via di mezzo.
+    """
+    percorso = _path(filename)
+    _fai_backup(filename)
+
+    fd, temporaneo = tempfile.mkstemp(dir=os.path.dirname(percorso) or ".",
+                                      prefix=f".{filename}.", suffix=".tmp")
+    os.close(fd)
+    try:
+        wb.save(temporaneo)
+        os.replace(temporaneo, percorso)   # atomico anche su Windows
+    except Exception:
+        try:
+            os.remove(temporaneo)
+        except OSError:
+            pass
+        raise
 
 
 def _next_id(rows: list) -> int:
@@ -205,7 +271,7 @@ class ExcelStore:
     """
 
     HEADERS = {
-        "utenti.xlsx":           ["id", "username", "password_hash", "password_plain", "role", "telefono", "email"],
+        "utenti.xlsx":           ["id", "username", "password_hash", "role", "telefono", "email"],
         "cinema.xlsx":           ["id", "nome", "città", "num_sale", "telefono", "indirizzo", "lat", "lng"],
         "cinema_eliminati.xlsx": ["id", "nome"],
         "tickets.xlsx":          ["id", "cinema", "città", "sala", "tipo", "urgenza", "stato",
@@ -237,12 +303,12 @@ class ExcelStore:
     def _row_to_user(self, r) -> User:
         return User(
             id=_i(r[0]), username=_s(r[1]), password_hash=_s(r[2]),
-            password_plain=_s(r[3]), role=_s(r[4]) or "user",
-            telefono=_s(r[5]), email=_s(r[6]),
+            role=_s(r[3]) or "user",
+            telefono=_s(r[4]), email=_s(r[5]),
         )
 
     def _user_to_row(self, u: User) -> tuple:
-        return (u.id, u.username, u.password_hash, u.password_plain,
+        return (u.id, u.username, u.password_hash,
                 u.role, u.telefono, u.email)
 
     def get_all_users(self) -> List[User]:
@@ -263,13 +329,13 @@ class ExcelStore:
                     return self._row_to_user(r)
         return None
 
-    def create_user(self, username: str, password_hash: str, password_plain: str = "",
+    def create_user(self, username: str, password_hash: str,
                     role: str = "user", telefono: str = "", email: str = "") -> User:
         with _lock:
             rows = self._rows("utenti.xlsx")
             new_id = _next_id(rows)
             u = User(id=new_id, username=username, password_hash=password_hash,
-                     password_plain=password_plain, role=role, telefono=telefono, email=email)
+                     role=role, telefono=telefono, email=email)
             rows.append(self._user_to_row(u))
             self._overwrite("utenti.xlsx", rows)
             return u
@@ -319,16 +385,48 @@ class ExcelStore:
         return None
 
     def get_problems_filtered(self, stato_ne: str = None, stato_eq: str = None,
-                               autore: str = None, urgenza: str = None) -> List[Problem]:
+                               autore: str = None, urgenza: str = None,
+                               cinemas: List[str] = None,
+                               ricerca: str = None) -> List[Problem]:
+        """
+        Elenco ticket filtrato.
+
+        `autore` e `cinemas` si sommano: un utente vede i ticket che ha aperto
+        lui PIU' quelli dei cinema che gli sono stati assegnati, così i colleghi
+        dello stesso cinema vedono gli stessi ticket.
+        `ricerca` cerca il testo in cinema, città, sala, descrizione, autore
+        e numero del ticket.
+        """
         problems = self.get_all_problems()
         if stato_ne:
             problems = [p for p in problems if p.stato != stato_ne]
         if stato_eq:
             problems = [p for p in problems if p.stato == stato_eq]
-        if autore:
-            problems = [p for p in problems if p.autore == autore]
+
+        if autore or cinemas:
+            nomi = {c.strip().lower() for c in (cinemas or []) if c}
+            problems = [
+                p for p in problems
+                if (autore and p.autore == autore)
+                or (nomi and (p.cinema or "").strip().lower() in nomi)
+            ]
+
         if urgenza:
             problems = [p for p in problems if p.urgenza == urgenza]
+
+        if ricerca:
+            q = ricerca.strip().lower()
+            if q:
+                problems = [
+                    p for p in problems
+                    if q in (p.cinema or "").lower()
+                    or q in (p.città or "").lower()
+                    or q in str(p.sala or "").lower()
+                    or q in (p.tipo or "").lower()
+                    or q in (p.autore or "").lower()
+                    or q in f"#{p.id}"
+                ]
+
         return sorted(problems, key=lambda p: p.data_ora or datetime.min, reverse=True)
 
     def create_problem(self, cinema: str, città: str, sala: str, tipo: str,
@@ -370,6 +468,23 @@ class ExcelStore:
 
     def _comment_to_row(self, c: Comment) -> tuple:
         return (c.id, c.problem_id, c.autore, c.role, c.testo, _fmt_dt(c.data_ora))
+
+    def get_comments_grouped(self) -> Dict[int, List[Comment]]:
+        """
+        Tutti i commenti raggruppati per ticket, con UNA sola lettura del file.
+
+        Serve alla dashboard, che prima chiamava get_comments() dentro un ciclo
+        e quindi rileggeva l'intero commenti.xlsx una volta per ogni ticket:
+        con 60 ticket aperti e un anno di archivio erano ~15 secondi di attesa.
+        """
+        with _lock:
+            gruppi: Dict[int, List[Comment]] = {}
+            for r in self._rows("commenti.xlsx"):
+                pid = _i(r[1])
+                gruppi.setdefault(pid, []).append(self._row_to_comment(r))
+        for lista in gruppi.values():
+            lista.sort(key=lambda c: c.data_ora or datetime.min)
+        return gruppi
 
     def get_comments(self, problem_id: int) -> List[Comment]:
         with _lock:
@@ -532,6 +647,39 @@ class ExcelStore:
 
     # ── SEED ──────────────────────────────────────────
 
+    def _migra_utenti_senza_password_chiara(self):
+        """
+        Rimuove la vecchia colonna 'password_plain' da utenti.xlsx.
+
+        Le password erano salvate anche in chiaro accanto all'hash: chiunque
+        aprisse il file (o la pagina Utenti) le vedeva tutte. La colonna viene
+        eliminata e il suo contenuto cancellato definitivamente dal disco.
+        L'hash resta, quindi nessuno deve rifare la password.
+        """
+        percorso = _path("utenti.xlsx")
+        if not os.path.exists(percorso):
+            return
+        try:
+            wb = openpyxl.load_workbook(percorso)
+            ws = wb.active
+            intestazione = [_s(c) for c in next(ws.iter_rows(values_only=True), ())]
+        except Exception as e:
+            print(f"[migrazione] utenti.xlsx non leggibile: {e}")
+            return
+
+        if "password_plain" not in intestazione:
+            return  # già migrato
+
+        idx = intestazione.index("password_plain")
+        righe = []
+        for r in list(ws.iter_rows(min_row=2, values_only=True)):
+            if not r or r[0] is None:
+                continue
+            righe.append(tuple(v for i, v in enumerate(r) if i != idx))
+
+        self._overwrite("utenti.xlsx", righe)
+        print(f"[migrazione] Rimosse {len(righe)} password in chiaro da utenti.xlsx")
+
     def seed(self):
         """Inizializza i file e inserisce dati di default se mancanti."""
         _ensure_dir()
@@ -540,15 +688,18 @@ class ExcelStore:
             if not os.path.exists(_path(fname)):
                 _load_wb(fname, headers)
 
+        # Migrazioni sui file già esistenti (prima di qualsiasi lettura)
+        self._migra_utenti_senza_password_chiara()
+
         # Admin di default
         if not self.get_user_by_username("admin"):
             self.create_user(
                 username="admin",
                 password_hash=generate_password_hash("admin1234"),
-                password_plain="admin1234",
                 role="admin",
             )
             print("✅ Utente admin creato (admin / admin1234)")
+            print("   ⚠  Cambia subito questa password dalla pagina Utenti.")
 
         # Seed cinema
         existing_nomi = self.get_all_cinema_nomi()

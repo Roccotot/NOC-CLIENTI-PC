@@ -49,6 +49,7 @@
     <div class="card shadow-sm">
       <div class="card-body">
         <form method="post" action="{{ url_for('edit_cinema', cinema_id=c.id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 
           <div class="row g-2 mb-3">
             <div class="col-12 col-md-7">
