@@ -310,6 +310,7 @@
                 <th style="width:4rem;">Sale</th>
                 <th>Telefono</th>
                 <th>Indirizzo</th>
+                <th class="sorttable_nosort">Gestito da</th>
                 <th class="sorttable_nosort text-center" style="width:5rem;">Ticket</th>
                 <th class="sorttable_nosort text-end" style="width:1px; white-space:nowrap;">Azioni</th>
               </tr>
@@ -330,6 +331,16 @@
                 </td>
                 <td style="color:var(--text-2); font-size:.82rem;" title="{{ c.indirizzo or '' }}">
                   {{ c.indirizzo or '—' }}
+                </td>
+                <td style="font-size:.78rem; max-width:220px;">
+                  {% set chi = gestori.get(c.id, []) %}
+                  {% if chi %}
+                    {% for nome in chi %}
+                      <span class="nbadge nbadge-user" style="margin:0 .15rem .15rem 0;">{{ nome }}</span>
+                    {% endfor %}
+                  {% else %}
+                    <span style="color:var(--text-3);">nessuno</span>
+                  {% endif %}
                 </td>
                 <td class="text-center">
                   {% set tks = tickets_map.get(c.nome, []) %}
