@@ -661,13 +661,14 @@ def admin_users():
             return redirect(url_for("admin_users"))
         nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
                                   role=role, telefono=telefono, email=email)
-        # Cinema selezionati nel form (solo per utenti non admin: gli admin vedono tutto)
-        cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
-        if role != "admin" and cinema_ids:
-            store.set_user_cinemas(nuovo.id, cinema_ids)
-            flash(f"Utente creato con {len(cinema_ids)} cinema assegnati.", "success")
+        # I cinema si assegnano dopo, dalla pagina di dettaglio: qui l'elenco
+        # sarebbe lungo un centinaio di voci e allungherebbe il modulo senza
+        # motivo, visto che serve una sola volta.
+        if role == "admin":
+            flash(f"Amministratore «{username}» creato. Vede tutti i cinema.", "success")
         else:
-            flash("Utente creato con successo.", "success")
+            flash(f"Utente «{username}» creato. Ora assegnagli i cinema con il "
+                  f"pulsante 🎬 nella sua riga.", "success")
         return redirect(url_for("admin_users"))
     users_list = sorted(store.get_all_users(), key=lambda u: u.id)
     all_cinemas = store.get_all_cinemas(order_by="città_nome")
@@ -778,7 +779,21 @@ def admin_cinemas():
         key = (p.cinema or "").strip()
         if key:
             tickets_map.setdefault(key, []).append(p)
-    return render_template("cinemas.html", cinemas=cinemas, tickets_map=tickets_map)
+
+    # Chi gestisce ogni cinema. Solo gli utenti normali: gli amministratori
+    # vedono tutti i cinema per definizione, elencarli su ogni riga sarebbe
+    # rumore senza informazione.
+    gestori = {}
+    for u in store.get_all_users():
+        if u.role == "admin":
+            continue
+        for cid in store.get_cinema_ids_for_user(u.id):
+            gestori.setdefault(cid, []).append(u.username)
+    for lista in gestori.values():
+        lista.sort()
+
+    return render_template("cinemas.html", cinemas=cinemas,
+                           tickets_map=tickets_map, gestori=gestori)
 
 
 @app.route("/admin/cinemas/<int:cinema_id>/edit", methods=["GET", "POST"])
