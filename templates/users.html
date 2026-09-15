@@ -100,6 +100,7 @@
               <tr>
                 <th class="d-none d-md-table-cell" style="cursor:pointer;">ID</th>
                 <th style="cursor:pointer;">Username</th>
+                <th class="d-none d-md-table-cell sorttable_nosort">Password</th>
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Telefono</th>
                 <th class="d-none d-lg-table-cell" style="cursor:pointer;">Email</th>
                 <th style="cursor:pointer;">Ruolo</th>
@@ -119,6 +120,9 @@
                     {% if u.telefono and u.email %} · {% endif %}
                     {% if u.email %}{{ u.email }}{% endif %}
                   </div>
+                </td>
+                <td class="d-none d-md-table-cell" style="font-size:.82rem; font-family:monospace; color:var(--text-2);">
+                  {% if u.password_plain %}{{ u.password_plain }}{% else %}<span style="color:var(--text-3); font-family:inherit;">non nota</span>{% endif %}
                 </td>
                 <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
                 <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
