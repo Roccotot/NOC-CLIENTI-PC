@@ -64,6 +64,27 @@
             <label class="form-label" style="color:var(--text-2);">File Excel (.xlsx)</label>
             <input type="file" name="file" accept=".xlsx" class="form-control" required>
           </div>
+
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox"
+                   name="sostituisci_cinema" id="sostituisci"
+                   onchange="document.getElementById('avviso-sost').style.display = this.checked ? '' : 'none';">
+            <label class="form-check-label" for="sostituisci">
+              Sostituisci i cinema esistenti
+            </label>
+            <div style="font-size:.78rem; color:var(--text-3); margin-top:.2rem;">
+              Senza questa spunta i cinema del file si <em>aggiungono</em>, e
+              quelli con lo stesso nome vengono saltati.
+            </div>
+            <div id="avviso-sost" style="display:none; margin-top:.5rem;">
+              <div class="alert alert-warning py-2 mb-0" style="font-size:.8rem;">
+                L'anagrafica attuale verrà cancellata e rimpiazzata con i
+                cinema del file. Le assegnazioni degli utenti vanno rifatte
+                dalla pagina Utenti. I ticket già aperti non si toccano.
+              </div>
+            </div>
+          </div>
+
           <button type="submit" class="btn btn-warning w-100">
             📤 Importa dati
           </button>
