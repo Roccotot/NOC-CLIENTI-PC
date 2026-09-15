@@ -144,6 +144,18 @@
                   {% endif %}
                 </td>
                 <td class="text-nowrap">
+                  {% if u.email %}
+                    <form method="post" class="d-inline"
+                      action="{{ url_for('invia_credenziali', user_id=u.id) }}"
+                      onsubmit="return confirm('Mandare a {{ u.email }} le credenziali di accesso?\n\nVerrà generata una NUOVA password: quella attuale smetterà di funzionare.');">
+                      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <button type="submit" class="btn btn-sm btn-success me-1"
+                        title="Invia email di benvenuto con le credenziali">✉</button>
+                    </form>
+                  {% else %}
+                    <button type="button" class="btn btn-sm btn-secondary me-1" disabled
+                      title="Serve prima l'email: aggiungila con ✏">✉</button>
+                  {% endif %}
                   <a href="{{ url_for('user_detail', user_id=u.id) }}"
                     class="btn btn-sm btn-warning me-1"
                     title="Modifica username, telefono ed email">✏</a>

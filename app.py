@@ -25,7 +25,6 @@ except ImportError:
 
 from storage import store
 import mailer
-import notifiche_telegram
 import impostazioni
 
 def _chiave_segreta() -> str:
@@ -326,9 +325,7 @@ def add_comment(problem_id):
         if session["role"] != "admin":
             # Scrive un cliente -> avvisa l'assistenza
             mailer.notifica_nuovo_messaggio(p, session["username"], testo)
-            notifiche_telegram.notifica_nuovo_messaggio(p, session["username"], testo)
         else:
-            # Risponde l'assistenza -> avvisa il cliente che ha aperto il ticket
             cliente = store.get_user_by_username(p.autore)
             if cliente and cliente.email:
                 mailer.notifica_risposta_al_cliente(p, cliente.email, testo)
@@ -520,7 +517,6 @@ def add_problem():
     # Notifica solo se il ticket è aperto da un cliente (non da un admin)
     if session["role"] != "admin":
         mailer.notifica_nuovo_ticket(nuovo)
-        notifiche_telegram.notifica_nuovo_ticket(nuovo)
     flash("Problema aggiunto con successo.", "success")
     return redirect(url_for("dashboard"))
 
@@ -625,8 +621,7 @@ def impostazioni_notifiche():
 
     imp = impostazioni.tutte()
     return render_template("impostazioni.html", imp=imp,
-                           configurato=impostazioni.configurato(),
-                           telegram_attivo=notifiche_telegram.is_configured())
+                           configurato=impostazioni.configurato())
 
 
 def _spiega_errore_invio(e: Exception) -> str:
@@ -736,6 +731,40 @@ def user_detail(user_id):
     all_cinemas  = store.get_all_cinemas(order_by="città_nome")
     assigned_ids = set(store.get_cinema_ids_for_user(u.id))
     return render_template("user_detail.html", u=u, all_cinemas=all_cinemas, assigned_ids=assigned_ids)
+
+
+# --- INVIA CREDENZIALI AL NUOVO UTENTE ---
+@app.route("/users/<int:user_id>/credenziali", methods=["POST"])
+def invia_credenziali(user_id):
+    if session.get("role") != "admin":
+        return "Accesso negato", 403
+    u = store.get_user_by_id(user_id)
+    if not u:
+        abort(404)
+
+    # Le password sono salvate cifrate e non si possono rileggere: se ne
+    # genera una nuova e si manda quella. Caratteri senza ambiguita' tra
+    # lettere e cifre, perche' spesso viene ricopiata a mano.
+    alfabeto = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    password = "".join(secrets.choice(alfabeto) for _ in range(12))
+
+    cinema = [c.nome for c in store.get_cinemas_by_ids(
+        store.get_cinema_ids_for_user(u.id))] if u.role != "admin" else []
+
+    try:
+        mailer.invia_credenziali(u.username, password, u.email, cinema)
+    except Exception as e:
+        flash(f"Invio non riuscito: {_spiega_errore_invio(e)}", "danger")
+        return redirect(url_for("admin_users"))
+
+    # La password si cambia solo dopo che l'invio e' partito: se fallisse,
+    # l'utente resterebbe con una password che non conosce nessuno.
+    u.password_hash = generate_password_hash(password)
+    store.update_user(u)
+
+    flash(f"Credenziali inviate a {u.email}. "
+          f"La password di «{u.username}» è stata rigenerata.", "success")
+    return redirect(url_for("admin_users"))
 
 
 # --- RESET PASSWORD ---

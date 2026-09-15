@@ -229,6 +229,132 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
     _send_async(subject, html, testo)
 
 
+def invia_credenziali(username: str, password: str, email_cliente: str,
+                      nomi_cinema: list = None) -> None:
+    """
+    Manda a un nuovo utente le credenziali e la spiegazione del sito.
+
+    La password va passata in chiaro da chi chiama, perché sul disco è
+    salvata solo cifrata e non si può rileggere: chi usa questa funzione
+    ne genera una nuova e la comunica qui.
+    """
+    if not email_cliente:
+        raise ValueError("L'utente non ha un indirizzo email: aggiungilo "
+                         "con il pulsante ✏ prima di inviare le credenziali.")
+
+    indirizzo = impostazioni.leggi("app_base_url").rstrip("/") or ""
+    colore = "#2563eb"
+
+    cinema = ""
+    if nomi_cinema:
+        voci = "".join(f"<li>{_escape(n)}</li>" for n in nomi_cinema)
+        cinema = (f'<p style="margin:18px 0 6px;color:#374151;font-size:14px;">'
+                  f'Vedrai le segnalazioni di:</p>'
+                  f'<ul style="margin:0;padding-left:20px;color:#111827;'
+                  f'font-size:14px;line-height:1.7;">{voci}</ul>')
+
+    bottone = ""
+    if indirizzo:
+        bottone = (f'<p style="margin:26px 0 0;text-align:center;">'
+                   f'<a href="{indirizzo}" style="display:inline-block;'
+                   f'background:{colore};color:#ffffff;text-decoration:none;'
+                   f'padding:13px 28px;border-radius:6px;font-size:15px;'
+                   f'font-weight:600;">Vai al portale</a></p>')
+
+    html = f"""<!DOCTYPE html>
+<html><body style="margin:0;padding:24px;background:#f3f4f6;
+  font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;
+    background:#ffffff;border-radius:10px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(0,0,0,.1);">
+    <tr><td style="background:{colore};padding:22px 26px;">
+      <div style="color:#ffffff;font-size:19px;font-weight:700;">
+        Benvenuto nel portale assistenza SigraFilm</div>
+    </td></tr>
+    <tr><td style="padding:26px;">
+
+      <p style="margin:0;color:#374151;font-size:14px;line-height:1.6;">
+        Da oggi puoi segnalarci i guasti delle apparecchiature direttamente
+        dal portale, invece di telefonare o scrivere una email.
+      </p>
+
+      <p style="margin:18px 0 6px;color:#374151;font-size:14px;line-height:1.6;">
+        Dal portale puoi:
+      </p>
+      <ul style="margin:0;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+        <li>aprire una segnalazione indicando sala e problema</li>
+        <li>allegare foto o video del guasto</li>
+        <li>scambiare messaggi con noi sulla singola segnalazione</li>
+        <li>seguire lo stato dell'intervento fino alla chiusura</li>
+      </ul>
+      {cinema}
+
+      <div style="margin-top:24px;padding:16px 18px;background:#f9fafb;
+        border-left:3px solid {colore};border-radius:0 6px 6px 0;">
+        <div style="color:#6b7280;font-size:11px;text-transform:uppercase;
+          letter-spacing:.5px;margin-bottom:10px;">I tuoi dati di accesso</div>
+        <table cellpadding="0" cellspacing="0">
+          <tr><td style="padding:3px 14px 3px 0;color:#6b7280;font-size:13px;">Indirizzo</td>
+              <td style="padding:3px 0;color:#111827;font-size:14px;font-weight:600;">
+                {_escape(indirizzo) or "(chiedi a noi)"}</td></tr>
+          <tr><td style="padding:3px 14px 3px 0;color:#6b7280;font-size:13px;">Utente</td>
+              <td style="padding:3px 0;color:#111827;font-size:15px;font-weight:700;
+                font-family:monospace;">{_escape(username)}</td></tr>
+          <tr><td style="padding:3px 14px 3px 0;color:#6b7280;font-size:13px;">Password</td>
+              <td style="padding:3px 0;color:#111827;font-size:15px;font-weight:700;
+                font-family:monospace;">{_escape(password)}</td></tr>
+        </table>
+      </div>
+
+      {bottone}
+
+      <p style="margin:26px 0 0;color:#6b7280;font-size:12px;line-height:1.6;
+        border-top:1px solid #e5e7eb;padding-top:16px;">
+        Conserva questa email o salva la password: per motivi di sicurezza
+        non possiamo rileggerla, possiamo solo generarne una nuova.
+        Per qualsiasi difficolt&agrave; scrivici, siamo a disposizione.
+      </p>
+
+    </td></tr>
+    <tr><td style="padding:14px 26px;background:#f9fafb;
+      border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;">
+      SigraFilm S.a.s. — Assistenza tecnica cinematografica
+    </td></tr>
+  </table>
+</body></html>"""
+
+    elenco = ("\nVedrai le segnalazioni di:\n"
+              + "".join(f"  - {n}\n" for n in nomi_cinema)) if nomi_cinema else ""
+
+    testo = f"""Benvenuto nel portale assistenza SigraFilm
+
+Da oggi puoi segnalarci i guasti delle apparecchiature direttamente dal
+portale, invece di telefonare o scrivere una email.
+
+Dal portale puoi:
+  - aprire una segnalazione indicando sala e problema
+  - allegare foto o video del guasto
+  - scambiare messaggi con noi sulla singola segnalazione
+  - seguire lo stato dell'intervento fino alla chiusura
+{elenco}
+I TUOI DATI DI ACCESSO
+
+  Indirizzo: {indirizzo or "(chiedi a noi)"}
+  Utente:    {username}
+  Password:  {password}
+
+Conserva questa email o salva la password: per motivi di sicurezza non
+possiamo rileggerla, possiamo solo generarne una nuova.
+
+Per qualsiasi difficolta' scrivici, siamo a disposizione.
+
+SigraFilm S.a.s. — Assistenza tecnica cinematografica
+"""
+
+    _send_async("Le tue credenziali per il portale assistenza SigraFilm",
+                html, testo, destinatario=email_cliente)
+
+
 def notifica_cambio_stato(problem, email_cliente: str,
                           vecchio_stato: str, vecchia_urgenza: str) -> None:
     """
