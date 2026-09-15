@@ -19,11 +19,19 @@ import urllib.request
 
 from storage import store
 
+# Il Support Tool teneva gli elenchi dentro index.html; da settembre 2026
+# stanno in dati.js come SIGRA_RAW = { vpn: `...`, offline: `...`, estivi: `...` }.
+# Proviamo prima il file nuovo, poi la pagina, cosi' funziona con entrambi.
 FONTI = [
+    "https://roccotot.github.io/Support-Tool/dati.js",
+    "https://raw.githubusercontent.com/Roccotot/Support-Tool/main/dati.js",
     "https://roccotot.github.io/Support-Tool/",
     "https://raw.githubusercontent.com/Roccotot/Support-Tool/main/index.html",
 ]
-ELENCHI = ["RAW", "RAW_ESTIVI", "RAW_NOVPN"]
+
+# Nomi degli elenchi nelle due versioni: quelli nuovi (dentro SIGRA_RAW)
+# e quelli vecchi (variabili a se stanti in index.html).
+ELENCHI = ["vpn", "offline", "estivi", "RAW", "RAW_ESTIVI", "RAW_NOVPN"]
 TIMEOUT = 30
 
 # Parole generiche da ignorare nel confronto dei nomi: servono a
@@ -51,25 +59,33 @@ def chiave_confronto(nome, citta) -> str:
 
 
 def scarica() -> str:
+    """
+    Scarica la sorgente dati, provando gli indirizzi in ordine.
+
+    Si accontenta del primo che contenga davvero degli elenchi: un indirizzo
+    puo' rispondere (pagina di errore, versione senza dati) senza contenere
+    nulla di utile, e in quel caso va provato il successivo.
+    """
     ultimo_errore = None
     for url in FONTI:
         try:
-            print(f"   provo {url}")
             richiesta = urllib.request.Request(
                 url, headers={"User-Agent": "SigraFilmNOC/1.0"})
             with urllib.request.urlopen(richiesta, timeout=TIMEOUT) as r:
-                return r.read().decode("utf-8", errors="replace")
+                testo = r.read().decode("utf-8", errors="replace")
+            if estrai(testo):
+                return testo
+            ultimo_errore = f"{url} non contiene elenchi di cinema"
         except Exception as e:
-            ultimo_errore = e
-            print(f"      non riuscito: {type(e).__name__}")
-    raise RuntimeError(f"Impossibile scaricare l'elenco: {ultimo_errore}")
+            ultimo_errore = f"{url}: {type(e).__name__}"
+    raise RuntimeError(f"Impossibile scaricare l'elenco ({ultimo_errore})")
 
 
 def estrai(html: str) -> list:
     """Ricava nome, città, numero sale e coordinate di ogni cinema."""
     trovati = {}
     for nome_elenco in ELENCHI:
-        m = re.search(rf"{nome_elenco}\s*=\s*`(.*?)`", html, re.S)
+        m = re.search(rf"\b{nome_elenco}\s*[:=]\s*`(.*?)`", html, re.S)
         if not m:
             continue
         for riga in m.group(1).strip().split("\n"):
