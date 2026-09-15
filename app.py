@@ -665,6 +665,7 @@ def admin_users():
             flash("Username già in uso.", "warning")
             return redirect(url_for("admin_users"))
         nuovo = store.create_user(username=username, password_hash=generate_password_hash(password),
+                                  password_plain=password,
                                   role=role, telefono=telefono, email=email)
         # I cinema si assegnano dopo, dalla pagina di dettaglio: qui l'elenco
         # sarebbe lungo un centinaio di voci e allungherebbe il modulo senza
@@ -759,7 +760,8 @@ def invia_credenziali(user_id):
 
     # La password si cambia solo dopo che l'invio e' partito: se fallisse,
     # l'utente resterebbe con una password che non conosce nessuno.
-    u.password_hash = generate_password_hash(password)
+    u.password_hash  = generate_password_hash(password)
+    u.password_plain = password
     store.update_user(u)
 
     flash(f"Credenziali inviate a {u.email}. "
@@ -779,7 +781,8 @@ def reset_password(user_id):
     u = store.get_user_by_id(user_id)
     if not u:
         abort(404)
-    u.password_hash = generate_password_hash(new_password)
+    u.password_hash  = generate_password_hash(new_password)
+    u.password_plain = new_password
     store.update_user(u)
     flash(f"Password di '{u.username}' aggiornata con successo.", "success")
     return redirect(url_for("admin_users"))
