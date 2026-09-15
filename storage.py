@@ -245,7 +245,24 @@ def _save_wb(wb: openpyxl.Workbook, filename: str):
     os.close(fd)
     try:
         wb.save(temporaneo)
-        os.replace(temporaneo, percorso)   # atomico anche su Windows
+
+        # Su Windows os.replace fallisce con "Accesso negato" se in quel
+        # preciso istante il file e' aperto da qualcun altro: l'antivirus che
+        # lo scansiona, Excel che lo tiene aperto, l'indicizzazione. Sono
+        # blocchi che durano una frazione di secondo, quindi si riprova.
+        ultimo = None
+        for tentativo in range(6):
+            try:
+                os.replace(temporaneo, percorso)
+                return
+            except PermissionError as e:
+                ultimo = e
+                time.sleep(0.2 * (tentativo + 1))
+        raise PermissionError(
+            f"Impossibile salvare {filename}: il file risulta occupato da un "
+            f"altro programma. Chiudilo se lo hai aperto in Excel, oppure "
+            f"escludi la cartella data dalla scansione dell'antivirus. "
+            f"({ultimo})")
     except Exception:
         try:
             os.remove(temporaneo)
@@ -554,6 +571,38 @@ class ExcelStore:
             rows.append(self._cinema_to_row(c))
             self._overwrite("cinema.xlsx", rows)
             return c
+
+    def sostituisci_cinema(self, elenco: List[dict]) -> List[Cinema]:
+        """
+        Rimpiazza in un colpo solo l'intera anagrafica cinema.
+
+        Farlo cancellando e ricreando uno per uno significava riscrivere lo
+        stesso file Excel piu' di quattrocento volte di seguito: su Windows
+        bastava che l'antivirus o Excel toccassero il file in uno di quei
+        momenti per far fallire tutto con "Accesso negato".
+
+        Qui il file viene scritto una volta sola. Le assegnazioni degli
+        utenti non vengono toccate: se ne occupa chi chiama, che sa come
+        ricollegarle.
+        """
+        with _lock:
+            creati = []
+            righe = []
+            for i, c in enumerate(elenco, start=1):
+                cin = Cinema(id=i, nome=c.get("nome", ""),
+                             città=c.get("città", ""),
+                             num_sale=_i(c.get("num_sale"), 1) or 1,
+                             telefono=c.get("telefono", "") or "",
+                             indirizzo=c.get("indirizzo", "") or "",
+                             lat=c.get("lat"), lng=c.get("lng"))
+                righe.append(self._cinema_to_row(cin))
+                creati.append(cin)
+            self._overwrite("cinema.xlsx", righe)
+
+            # Le vecchie assegnazioni puntano a identificativi che non
+            # esistono piu': si azzerano qui e le rimette chi importa.
+            self._overwrite("assegnazioni.xlsx", [])
+            return creati
 
     def update_cinema(self, c: Cinema):
         with _lock:
