@@ -151,15 +151,11 @@ def importa(store) -> dict:
         if chiavi:
             assegnazioni[u.id] = chiavi
 
-    for c in attuali:
-        store.delete_cinema(c.id)
-
-    mappa = {}
-    for c in nuovi:
-        creato = store.create_cinema(nome=c["nome"], città=c["città"],
-                                     num_sale=c["num_sale"],
-                                     lat=c["lat"], lng=c["lng"])
-        mappa[chiave_confronto(c["nome"], c["città"])] = creato.id
+    # Una sola scrittura invece di una cancellazione e un inserimento per
+    # ogni cinema: su Windows le centinaia di riscritture consecutive dello
+    # stesso file facevano fallire l'importazione con "Accesso negato".
+    creati = store.sostituisci_cinema(nuovi)
+    mappa = {chiave_confronto(c.nome, c.città): c.id for c in creati}
 
     ricollegate = perse = 0
     for user_id, chiavi in assegnazioni.items():
