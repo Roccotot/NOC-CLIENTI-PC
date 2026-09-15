@@ -1087,6 +1087,29 @@ def import_excel():
         flash("File non valido o corrotto.", "danger")
         return redirect(url_for("import_excel"))
 
+    # Con "sostituisci" i cinema del file rimpiazzano l'anagrafica invece di
+    # aggiungersi: altrimenti chi ne ha già a catalogo si ritrova i doppioni,
+    # perché l'importazione salta i nomi che esistono già.
+    if request.form.get("sostituisci_cinema") and "Cinema" in wb.sheetnames:
+        elenco = []
+        for riga in list(wb["Cinema"].iter_rows(values_only=True))[1:]:
+            if not riga or not riga[1]:
+                continue
+            elenco.append({
+                "nome": str(riga[1]).strip(),
+                "città": str(riga[2] or "").strip(),
+                "num_sale": riga[3] or 1,
+                "telefono": str(riga[4] or "").strip(),
+                "indirizzo": str(riga[5] or "").strip(),
+                "lat": riga[6], "lng": riga[7],
+            })
+        if elenco:
+            store.sostituisci_cinema(elenco)
+            flash(f"Anagrafica sostituita: {len(elenco)} cinema. "
+                  f"Ricontrolla le assegnazioni degli utenti dalla pagina Utenti.",
+                  "success")
+            return redirect(url_for("import_excel"))
+
     counts = store.import_from_workbook(wb)
     parts = []
     if counts["added_problems"]:   parts.append(f"{counts['added_problems']} ticket aggiunti")
