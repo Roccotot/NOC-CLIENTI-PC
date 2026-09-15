@@ -229,6 +229,71 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
     _send_async(subject, html, testo)
 
 
+def notifica_cambio_stato(problem, email_cliente: str,
+                          vecchio_stato: str, vecchia_urgenza: str) -> None:
+    """
+    Avvisa il cliente che il suo ticket è stato aggiornato.
+
+    Serve perché altrimenti il cliente non ha modo di sapere che qualcuno
+    ha preso in carico il problema o lo ha chiuso: doveva ricontrollare
+    il sito a mano.
+    """
+    if not email_cliente:
+        return
+
+    cambiato_stato   = problem.stato != vecchio_stato
+    cambiata_urgenza = problem.urgenza != vecchia_urgenza
+    if not (cambiato_stato or cambiata_urgenza):
+        return
+
+    colori = {"Chiuso": "#16a34a", "In corso": "#2563eb"}
+    colore = colori.get(problem.stato, "#6b7280")
+    link   = _ticket_url(problem.id)
+
+    righe = [
+        ("Ticket", f"#{problem.id}"),
+        ("Cinema", problem.cinema),
+        ("Sala",   str(problem.sala)),
+    ]
+    if cambiato_stato:
+        righe.append(("Stato", f"{vecchio_stato} → <b>{_escape(problem.stato)}</b>"))
+    else:
+        righe.append(("Stato", problem.stato))
+    if cambiata_urgenza:
+        righe.append(("Urgenza", f"{vecchia_urgenza} → <b>{_escape(problem.urgenza)}</b>"))
+
+    if problem.stato == "Chiuso":
+        titolo = f"Ticket #{problem.id} chiuso"
+        frase  = ("Il problema risulta risolto e il ticket è stato chiuso. "
+                  "Se dovesse ripresentarsi, aprine pure uno nuovo.")
+    elif problem.stato == "In corso":
+        titolo = f"Ticket #{problem.id} preso in carico"
+        frase  = "Ci stiamo lavorando. Ti aggiorniamo appena ci sono novità."
+    else:
+        titolo = f"Ticket #{problem.id} aggiornato"
+        frase  = "Lo stato del tuo ticket è cambiato."
+
+    corpo = (f'<p style="margin:20px 0 0;color:#374151;font-size:14px;'
+             f'line-height:1.5;">{frase}</p>')
+
+    subject = f"[SigraFilm] {titolo} — {problem.cinema}"
+    html    = _wrap(titolo, colore, righe, corpo, link)
+
+    testo = (
+        f"{titolo}\n\n"
+        f"Cinema: {problem.cinema}\n"
+        f"Sala:   {problem.sala}\n"
+        f"Stato:  {vecchio_stato} -> {problem.stato}\n"
+    )
+    if cambiata_urgenza:
+        testo += f"Urgenza: {vecchia_urgenza} -> {problem.urgenza}\n"
+    testo += f"\n{frase}\n"
+    if link:
+        testo += f"\n{link}\n"
+
+    _send_async(subject, html, testo, destinatario=email_cliente)
+
+
 def notifica_risposta_al_cliente(problem, email_cliente: str, testo_msg: str) -> None:
     """
     Avvisa il cliente che l'assistenza ha risposto sul suo ticket.

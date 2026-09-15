@@ -441,6 +441,8 @@ def update_ticket(problem_id):
         return "Accesso negato", 403
     nuovo_stato   = request.form.get("stato", p.stato)
     nuova_urgenza = request.form.get("urgenza", p.urgenza)
+    stato_prima   = p.stato
+    urgenza_prima = p.urgenza
     if nuovo_stato == "Chiuso" and p.stato != "Chiuso":
         p.chiuso_da = session["username"]
         p.chiuso_il = datetime.utcnow()
@@ -450,6 +452,14 @@ def update_ticket(problem_id):
     p.stato   = nuovo_stato
     p.urgenza = nuova_urgenza
     store.update_problem(p)
+
+    # Avvisa il cliente del cambiamento, se l'ha fatto l'assistenza: quando
+    # e' lui stesso a modificare il ticket saprebbe gia' di averlo fatto.
+    if session["role"] == "admin" and session["username"] != p.autore:
+        cliente = store.get_user_by_username(p.autore)
+        if cliente and cliente.email:
+            mailer.notifica_cambio_stato(p, cliente.email, stato_prima, urgenza_prima)
+
     flash("Ticket aggiornato.", "success")
     if nuovo_stato == "Chiuso":
         return redirect(url_for("closed_tickets"))
