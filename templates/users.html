@@ -144,6 +144,9 @@
                   {% endif %}
                 </td>
                 <td class="text-nowrap">
+                  <a href="{{ url_for('user_detail', user_id=u.id) }}"
+                    class="btn btn-sm btn-warning me-1"
+                    title="Modifica username, telefono ed email">✏</a>
                   {% if u.role != 'admin' %}
                     <a href="{{ url_for('user_detail', user_id=u.id) }}"
                       class="btn btn-sm btn-info me-1" title="Assegna cinema">🎬</a>

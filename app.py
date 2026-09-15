@@ -688,6 +688,37 @@ def user_detail(user_id):
     if not u:
         abort(404)
     if request.method == "POST":
+        # La stessa pagina gestisce due moduli distinti: i recapiti e i
+        # cinema assegnati. Si riconoscono dal campo "azione".
+        if request.form.get("azione") == "recapiti":
+            nuovo_nome = request.form.get("username", "").strip()
+            if not nuovo_nome:
+                flash("Lo username non può essere vuoto.", "danger")
+                return redirect(url_for("user_detail", user_id=u.id))
+            altro = store.get_user_by_username(nuovo_nome)
+            if altro and altro.id != u.id:
+                flash(f"Lo username «{nuovo_nome}» è già in uso.", "warning")
+                return redirect(url_for("user_detail", user_id=u.id))
+
+            vecchio_nome = u.username
+            u.username = nuovo_nome
+            u.telefono = request.form.get("telefono", "").strip()
+            u.email    = request.form.get("email", "").strip()
+            store.update_user(u)
+
+            # I ticket registrano l'autore per nome, non per identificativo:
+            # senza questo allineamento l'utente perderebbe i propri ticket.
+            if nuovo_nome != vecchio_nome:
+                for p in store.get_all_problems():
+                    if p.autore == vecchio_nome:
+                        p.autore = nuovo_nome
+                        store.update_problem(p)
+                flash(f"Utente rinominato in «{nuovo_nome}». "
+                      f"Aggiornati anche i suoi ticket.", "success")
+            else:
+                flash("Recapiti aggiornati.", "success")
+            return redirect(url_for("user_detail", user_id=u.id))
+
         cinema_ids = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
         store.set_user_cinemas(u.id, cinema_ids)
         flash(f"Cinema assegnati a '{u.username}' aggiornati.", "success")

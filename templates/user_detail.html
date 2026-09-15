@@ -56,7 +56,41 @@
       <div>
         <h2 class="page-heading mb-0">{{ u.username }}</h2>
         <div style="color:var(--text-3); font-size:.82rem; margin-top:.2rem;">
-          {% if u.role == 'admin' %}
+          <!-- Recapiti: valgono per tutti, admin compresi -->
+    <div class="card shadow-sm mb-4">
+      <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
+        <div class="card-title" style="margin:0;">Dati utente</div>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('user_detail', user_id=u.id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="azione" value="recapiti">
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label">Username</label>
+              <input type="text" name="username" class="form-control"
+                     value="{{ u.username }}" required autocomplete="off">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Telefono</label>
+              <input type="tel" name="telefono" class="form-control"
+                     value="{{ u.telefono }}" autocomplete="off">
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control"
+                     value="{{ u.email }}" autocomplete="off">
+              <div style="font-size:.75rem; color:var(--text-3); margin-top:.3rem;">
+                Serve per avvisarlo quando rispondi a un suo ticket.
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">Salva dati</button>
+        </form>
+      </div>
+    </div>
+
+    {% if u.role == 'admin' %}
             <span class="nbadge nbadge-admin">Admin</span> — vede tutti i cinema
           {% else %}
             <span class="nbadge nbadge-user">User</span>
