@@ -232,8 +232,8 @@
 
     <!-- Tabella problemi -->
     {% if problems %}
-      <div class="table-responsive">
-        <table class="table table-striped table-hover sortable">
+      <div class="table-responsive contenitore-schede">
+        <table class="table table-striped table-hover sortable tabella-schede">
           <thead class="table-dark">
             <tr>
               <th class="d-none d-md-table-cell">ID</th>
@@ -260,19 +260,19 @@
                   <span class="nbadge nbadge-nuovo ms-1" style="font-size:.6rem; vertical-align:middle;">NUOVO</span>
                 {% endif %}
               </td>
-              <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ p.città }}</td>
-              <td style="font-weight:600;">
+              <td class="d-none d-md-table-cell" data-etichetta="Città" style="color:var(--text-2); font-size:.82rem;">{{ p.città }}</td>
+              <td class="scheda-titolo" style="font-weight:600;">
                 {{ p.cinema }}
                 <div class="d-md-none" style="font-size:.72rem; color:var(--text-3); font-weight:400; margin-top:.15rem;">
-                  {{ p.città }} · #{{ p.id }}
+                  #{{ p.id }}
                   {% if p.id in new_ticket_ids %}
                     <span class="nbadge nbadge-nuovo ms-1" style="font-size:.6rem; vertical-align:middle;">NUOVO</span>
                   {% endif %}
                 </div>
               </td>
-              <td style="font-size:.82rem; font-weight:600; color:var(--text-2);">S.{{ p.sala }}</td>
-              <td class="d-none d-lg-table-cell" style="max-width:220px; white-space:normal; color:var(--text-2);">{{ p.tipo }}</td>
-              <td>
+              <td data-etichetta="Sala" style="font-size:.82rem; font-weight:600; color:var(--text-2);">S.{{ p.sala }}</td>
+              <td class="d-none d-lg-table-cell" data-etichetta="Problema" style="max-width:220px; white-space:normal; color:var(--text-2);">{{ p.tipo }}</td>
+              <td data-etichetta="Urgenza">
                 {% if p.urgenza == 'Critico' %}
                   <span class="nbadge nbadge-critico">Critico</span>
                 {% elif p.urgenza == 'Urgente' %}
@@ -282,7 +282,7 @@
                   <span class="nbadge nbadge-non-urgente d-sm-none">—</span>
                 {% endif %}
               </td>
-              <td>
+              <td data-etichetta="Stato">
                 {% if p.stato == 'Aperto' %}
                   <span class="nbadge nbadge-aperto">Aperto</span>
                 {% elif p.stato == 'In corso' %}
@@ -291,7 +291,7 @@
                   <span class="nbadge nbadge-chiuso">Chiuso</span>
                 {% endif %}
               </td>
-              <td onclick="event.stopPropagation()">
+              <td data-etichetta="Messaggi" onclick="event.stopPropagation()">
                 {% set ci = chat_info[p.id] %}
                 {% if ci.unread > 0 %}
                   <a href="{{ url_for('ticket_detail', problem_id=p.id) }}"
@@ -308,11 +308,11 @@
                   <span class="chat-counter chat-counter-empty">—</span>
                 {% endif %}
               </td>
-              <td class="d-none d-md-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ p.autore }}</td>
-              <td class="d-none d-md-table-cell" style="color:var(--text-3); font-size:.78rem; white-space:nowrap;">
+              <td class="d-none d-md-table-cell" data-etichetta="Aperto da" style="color:var(--text-2); font-size:.82rem;">{{ p.autore }}</td>
+              <td class="d-none d-md-table-cell" data-etichetta="Data" style="color:var(--text-3); font-size:.78rem; white-space:nowrap;">
                 {{ p.data_ora.strftime("%d/%m/%Y %H:%M") }}
               </td>
-              <td class="text-nowrap" onclick="event.stopPropagation()">
+              <td class="text-nowrap scheda-azioni" onclick="event.stopPropagation()">
                 {% if session.get("role") == "admin" or session.get("username") == p.autore %}
                   <a href="{{ url_for('edit_problem', problem_id=p.id) }}"
                     class="btn btn-sm btn-warning me-1 d-none d-md-inline-flex">✏</a>
