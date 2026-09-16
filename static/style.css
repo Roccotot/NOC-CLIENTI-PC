@@ -405,6 +405,29 @@ body.login-bg {
   margin-bottom: 1.75rem;
 }
 
+/* ─── PIE' DI PAGINA ───────────────────────────────── */
+.pie-pagina {
+  margin-top: 2.5rem;
+  padding: 1.3rem 1rem 1.6rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: .72rem;
+  letter-spacing: .04em;
+  color: var(--text-3);
+}
+
+/* Nelle pagine di accesso il corpo e' centrato con flex: senza toglierlo
+   dal flusso il pie' finirebbe di fianco al riquadro invece che sotto. */
+body.login-bg .pie-pagina {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: .9rem 1rem;
+  border-top: none;
+}
+
 /* ─── bg-light override ─────────────────────────────── */
 .bg-light { background-color: var(--bg-base) !important; }
 body.bg-light {
