@@ -183,6 +183,11 @@ def index():
     return redirect(url_for("login"))
 
 
+def _email_assistenza() -> str:
+    """Casella a cui far scrivere chi non ha ancora le credenziali."""
+    return impostazioni.leggi("notify_email") or "assistenza@sigrafilm.it"
+
+
 # --- LOGIN ---
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -190,6 +195,13 @@ def login():
         username = request.form["username"].strip()
         password = request.form["password"]
         u = store.get_user_by_username(username)
+        if u and u.stato == "richiesta":
+            # Si e' registrato da solo ma nessuno gli ha ancora mandato la
+            # password: senza questo messaggio proverebbe all'infinito.
+            flash("La tua richiesta è in attesa: ti manderemo le credenziali "
+                  "per email appena l'avremo approvata.", "info")
+            return render_template("login.html",
+                                   email_assistenza=_email_assistenza())
         if u and check_password_hash(u.password_hash, password):
             session["user_id"] = u.id
             session["role"] = u.role
@@ -197,7 +209,88 @@ def login():
             flash("Login effettuato", "success")
             return redirect(url_for("dashboard"))
         flash("Credenziali non valide", "danger")
-    return render_template("login.html")
+    return render_template("login.html", email_assistenza=_email_assistenza())
+
+
+# --- REGISTRAZIONE LIBERA ---
+# Massimo numero di richieste in attesa contemporaneamente: senza un tetto
+# la pagina, che è aperta a chiunque, si potrebbe riempire di iscrizioni
+# finte. Quando si raggiunge, basta evadere quelle in coda.
+MAX_RICHIESTE_IN_ATTESA = 30
+
+
+def _email_valida(indirizzo: str) -> bool:
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", indirizzo))
+
+
+@app.route("/registrati", methods=["GET", "POST"])
+def registrati():
+    """
+    Il responsabile di un cinema chiede l'accesso da solo.
+
+    Non crea un utente utilizzabile: crea una richiesta che compare nella
+    pagina Utenti. La password la genera e la manda l'amministratore con
+    il pulsante ✉, così nessuno entra senza essere stato approvato.
+    """
+    cinemas = store.get_all_cinemas(order_by="città_nome")
+
+    if request.method == "POST":
+        nome     = request.form.get("nome", "").strip()
+        telefono = request.form.get("telefono", "").strip()
+        email    = request.form.get("email", "").strip()
+        cinema_id = request.form.get("cinema_id", "").strip()
+
+        dati = {"nome": nome, "telefono": telefono, "email": email,
+                "cinema_id": cinema_id}
+
+        def _rifiuta(messaggio, categoria="danger"):
+            flash(messaggio, categoria)
+            return render_template("registrati.html", cinemas=cinemas, dati=dati)
+
+        if len(nome) < 3:
+            return _rifiuta("Scrivi il tuo nome (almeno 3 caratteri).")
+        if len(nome) > 60:
+            return _rifiuta("Il nome è troppo lungo.")
+        if not _email_valida(email):
+            return _rifiuta("L'indirizzo email non sembra valido: "
+                            "serve per mandarti la password.")
+        if len(telefono) < 6:
+            return _rifiuta("Lascia un numero di telefono per poterti "
+                            "contattare in caso di urgenze.")
+        if not cinema_id.isdigit() or not store.get_cinema_by_id(int(cinema_id)):
+            return _rifiuta("Scegli il cinema che devi gestire.")
+
+        if store.get_user_by_username(nome):
+            return _rifiuta("Esiste già un accesso con questo nome. Se è il "
+                            "tuo e hai perso la password, scrivici.", "warning")
+
+        if len(store.utenti_in_attesa()) >= MAX_RICHIESTE_IN_ATTESA:
+            return _rifiuta("Al momento non possiamo accettare altre richieste. "
+                            "Riprova più tardi o scrivici direttamente.", "warning")
+
+        cinema = store.get_cinema_by_id(int(cinema_id))
+
+        # Password casuale mai comunicata a nessuno: serve solo a non lasciare
+        # la riga senza hash. Quella vera la genera l'amministratore.
+        nuovo = store.create_user(
+            username=nome,
+            password_hash=generate_password_hash(secrets.token_urlsafe(32)),
+            password_plain="",
+            role="user", telefono=telefono, email=email,
+            stato="richiesta",
+        )
+        store.set_user_cinemas(nuovo.id, [cinema.id])
+
+        try:
+            mailer.notifica_richiesta_registrazione(nome, email, telefono, cinema.nome)
+        except Exception as e:
+            app.logger.warning("Notifica registrazione non inviata: %s", e)
+
+        flash("Richiesta inviata. Ti manderemo le credenziali per email "
+              "appena l'avremo controllata.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("registrati.html", cinemas=cinemas, dati={})
 
 
 # NOTA: la vecchia route "/reset-admin-password-7x9k" è stata rimossa.
@@ -676,13 +769,18 @@ def admin_users():
             flash(f"Utente «{username}» creato. Ora assegnagli i cinema con il "
                   f"pulsante 🎬 nella sua riga.", "success")
         return redirect(url_for("admin_users"))
-    users_list = sorted(store.get_all_users(), key=lambda u: u.id)
+    # Le richieste di registrazione vanno in cima: sono l'unica riga su cui
+    # c'è qualcosa da fare, e in fondo a un elenco lungo passerebbero inosservate.
+    users_list = sorted(store.get_all_users(),
+                        key=lambda u: (0 if u.stato == "richiesta" else 1, u.id))
+    in_attesa = sum(1 for u in users_list if u.stato == "richiesta")
     all_cinemas = store.get_all_cinemas(order_by="città_nome")
     # Cinema già assegnati, per mostrarli nella tabella
     assegnati = {u.id: store.get_cinema_ids_for_user(u.id) for u in users_list}
     nomi_cinema = {c.id: c.nome for c in all_cinemas}
     return render_template("users.html", users=users_list, all_cinemas=all_cinemas,
-                           assegnati=assegnati, nomi_cinema=nomi_cinema)
+                           assegnati=assegnati, nomi_cinema=nomi_cinema,
+                           in_attesa=in_attesa)
 
 
 # --- DETTAGLIO UTENTE ---
@@ -760,12 +858,18 @@ def invia_credenziali(user_id):
 
     # La password si cambia solo dopo che l'invio e' partito: se fallisse,
     # l'utente resterebbe con una password che non conosce nessuno.
+    era_richiesta = u.stato == "richiesta"
     u.password_hash  = generate_password_hash(password)
     u.password_plain = password
+    u.stato          = "attivo"      # da qui in poi puo' entrare
     store.update_user(u)
 
-    flash(f"Credenziali inviate a {u.email}. "
-          f"La password di «{u.username}» è stata rigenerata.", "success")
+    if era_richiesta:
+        flash(f"Richiesta approvata: «{u.username}» ha ricevuto le credenziali "
+              f"a {u.email} e può entrare.", "success")
+    else:
+        flash(f"Credenziali inviate a {u.email}. "
+              f"La password di «{u.username}» è stata rigenerata.", "success")
     return redirect(url_for("admin_users"))
 
 
@@ -783,6 +887,10 @@ def reset_password(user_id):
         abort(404)
     u.password_hash  = generate_password_hash(new_password)
     u.password_plain = new_password
+    # Se era una richiesta in attesa, scegliergli la password a mano vale
+    # come approvazione: altrimenti resterebbe bloccato fuori con una
+    # password valida in mano.
+    u.stato          = "attivo"
     store.update_user(u)
     flash(f"Password di '{u.username}' aggiornata con successo.", "success")
     return redirect(url_for("admin_users"))
@@ -1136,9 +1244,10 @@ def export_excel():
 
     if foglio in ("utenti", "tutto") and is_admin:
         ws = new_sheet("Utenti")
-        style_header(ws, ["ID", "Username", "Ruolo", "Email", "Telefono"])
+        style_header(ws, ["ID", "Username", "Ruolo", "Email", "Telefono", "Stato"])
         for u in sorted(store.get_all_users(), key=lambda x: x.id):
-            ws.append([u.id, u.username, u.role, u.email, u.telefono])
+            stato = "In attesa di approvazione" if u.stato == "richiesta" else "Attivo"
+            ws.append([u.id, u.username, u.role, u.email, u.telefono, stato])
         autowidth(ws)
 
     buf = io.BytesIO()

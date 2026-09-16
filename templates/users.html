@@ -44,6 +44,15 @@
 
     <h2 class="page-heading">Gestione Utenti</h2>
 
+    {% if in_attesa %}
+      <div class="alert alert-warning py-2">
+        <strong>{{ in_attesa }}</strong>
+        {% if in_attesa == 1 %}richiesta di registrazione in attesa{% else %}richieste di registrazione in attesa{% endif %}.
+        {% if in_attesa == 1 %}È la prima riga dell'elenco{% else %}Sono le prime righe dell'elenco{% endif %}:
+        premi ✉ per generare la password e mandarla, oppure ✕ per rifiutare.
+      </div>
+    {% endif %}
+
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -110,13 +119,19 @@
             </thead>
             <tbody>
               {% for u in users %}
-              <tr>
+              {% set in_attesa_riga = (u.stato == 'richiesta') %}
+              <tr {% if in_attesa_riga %}class="riga-richiesta"{% endif %}>
                 <td class="d-none d-md-table-cell" style="color:var(--text-3); font-size:.78rem; font-weight:500;">#{{ u.id }}</td>
                 <td class="scheda-titolo" style="font-weight:500; color:#fff;">
                   {{ u.username }}
+                  {% if in_attesa_riga %}
+                    <span class="nbadge nbadge-richiesta" style="margin-left:.4rem;">Nuova richiesta</span>
+                  {% endif %}
                 </td>
                 <td class="d-none d-md-table-cell" data-etichetta="Password" style="font-size:.82rem; font-family:monospace; color:var(--text-2);">
-                  {% if u.password_plain %}{{ u.password_plain }}{% else %}<span style="color:var(--text-3); font-family:inherit;">non nota</span>{% endif %}
+                  {% if in_attesa_riga %}
+                    <span style="color:var(--yellow); font-family:inherit;">da mandare</span>
+                  {% elif u.password_plain %}{{ u.password_plain }}{% else %}<span style="color:var(--text-3); font-family:inherit;">non nota</span>{% endif %}
                 </td>
                 <td class="d-none d-lg-table-cell" data-etichetta="Telefono" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
                 <td class="d-none d-lg-table-cell" data-etichetta="Email" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
@@ -145,10 +160,14 @@
                   {% if u.email %}
                     <form method="post" class="d-inline"
                       action="{{ url_for('invia_credenziali', user_id=u.id) }}"
-                      onsubmit="return confirm('Mandare a {{ u.email }} le credenziali di accesso?\n\nVerrà generata una NUOVA password: quella attuale smetterà di funzionare.');">
+                      {% if in_attesa_riga %}
+                      onsubmit="return confirm('Approvare la richiesta di «{{ u.username }}»?\n\nGli verrà generata una password e mandata a {{ u.email }}.');"
+                      {% else %}
+                      onsubmit="return confirm('Mandare a {{ u.email }} le credenziali di accesso?\n\nVerrà generata una NUOVA password: quella attuale smetterà di funzionare.');"
+                      {% endif %}>
                       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                       <button type="submit" class="btn btn-sm btn-success me-1"
-                        title="Invia email di benvenuto con le credenziali">✉</button>
+                        title="{{ 'Approva la richiesta e manda la password' if in_attesa_riga else 'Invia email di benvenuto con le credenziali' }}">✉{% if in_attesa_riga %} Approva{% endif %}</button>
                     </form>
                   {% else %}
                     <button type="button" class="btn btn-sm btn-secondary me-1" disabled
@@ -176,7 +195,8 @@
                     class="d-inline" style="margin-left:.25rem;">
                     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-sm btn-danger"
-                      onclick="return confirm('Eliminare questo utente?')">✕</button>
+                      title="{{ 'Rifiuta la richiesta' if in_attesa_riga else 'Elimina utente' }}"
+                      onclick="return confirm('{{ 'Rifiutare la richiesta di «' ~ u.username ~ '»?' if in_attesa_riga else 'Eliminare questo utente?' }}')">✕</button>
                   </form>
                 </td>
               </tr>

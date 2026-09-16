@@ -229,6 +229,59 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
     _send_async(subject, html, testo)
 
 
+def notifica_richiesta_registrazione(nome: str, email: str, telefono: str,
+                                     nome_cinema: str) -> None:
+    """
+    Avvisa l'assistenza che qualcuno ha chiesto l'accesso dalla pagina di login.
+
+    Senza questa notifica la richiesta resterebbe ferma nella pagina Utenti
+    finche' qualcuno non ci passa per caso.
+    """
+    colore = "#7c3aed"
+    base = impostazioni.leggi("app_base_url").rstrip("/")
+    link = f"{base}/users" if base else ""
+
+    righe = [
+        ("Nome",     _escape(nome)),
+        ("Cinema",   _escape(nome_cinema)),
+        ("Telefono", _escape(telefono)),
+        ("Email",    _escape(email)),
+    ]
+
+    corpo = (
+        '<p style="margin:20px 0 0;color:#374151;font-size:14px;line-height:1.6;">'
+        'La richiesta è in attesa nella pagina Utenti. Per approvarla, premi il '
+        'pulsante ✉ sulla sua riga: il portale genera una password e gliela '
+        'manda per email. Se non la riconosci, elimina la riga con ✕.</p>'
+    )
+
+    # _wrap mette un bottone intitolato "Apri il ticket": qui il link porta
+    # alla pagina Utenti, quindi lo si costruisce a mano.
+    if link:
+        corpo += (f'<p style="margin:24px 0 0;">'
+                  f'<a href="{link}" style="display:inline-block;background:{colore};'
+                  f'color:#ffffff;text-decoration:none;padding:11px 22px;'
+                  f'border-radius:6px;font-size:14px;font-weight:600;">'
+                  f'Apri la pagina Utenti</a></p>')
+
+    subject = f"[NOC] Richiesta di accesso — {nome_cinema}"
+    html    = _wrap("Nuova richiesta di accesso", colore, righe, corpo, "")
+
+    testo = (
+        f"Nuova richiesta di accesso al portale\n\n"
+        f"Nome:     {nome}\n"
+        f"Cinema:   {nome_cinema}\n"
+        f"Telefono: {telefono}\n"
+        f"Email:    {email}\n\n"
+        f"La richiesta e' in attesa nella pagina Utenti. Per approvarla premi\n"
+        f"il pulsante di invio credenziali sulla sua riga.\n"
+    )
+    if link:
+        testo += f"\n{link}\n"
+
+    _send_async(subject, html, testo)
+
+
 def invia_credenziali(username: str, password: str, email_cliente: str,
                       nomi_cinema: list = None) -> None:
     """

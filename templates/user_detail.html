@@ -52,11 +52,29 @@
     {% endwith %}
 
     <!-- Intestazione utente -->
-    <div class="d-flex align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
       <div>
         <h2 class="page-heading mb-0">{{ u.username }}</h2>
         <div style="color:var(--text-3); font-size:.82rem; margin-top:.2rem;">
-          <!-- Recapiti: valgono per tutti, admin compresi -->
+          {% if u.role == 'admin' %}Amministratore{% else %}Utente{% endif %}
+          — #{{ u.id }}
+        </div>
+      </div>
+      {% if u.stato == 'richiesta' %}
+        <span class="nbadge nbadge-richiesta">Nuova richiesta</span>
+      {% endif %}
+    </div>
+
+    {% if u.stato == 'richiesta' %}
+      <div class="alert alert-warning py-2">
+        Si è registrato da solo e non può ancora entrare. Torna alla
+        <a href="{{ url_for('admin_users') }}" style="color:inherit;">pagina Utenti</a>
+        e premi ✉ sulla sua riga per generargli la password e mandargliela,
+        oppure impostagliela a mano qui sotto.
+      </div>
+    {% endif %}
+
+    <!-- Recapiti: valgono per tutti, admin compresi -->
     <div class="card shadow-sm mb-4">
       <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
         <div class="card-title" style="margin:0;">Dati utente</div>
