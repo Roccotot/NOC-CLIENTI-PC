@@ -23,6 +23,44 @@ TIMEOUT = 20
 
 FROM_NAME = "SigraFilm NOC"
 
+# Il logo viaggia dentro la mail invece che come collegamento a un indirizzo
+# del sito: quasi tutti i programmi di posta bloccano le immagini prese da
+# internet, e il sito gira su un indirizzo di casa che da fuori non si
+# raggiunge. Pesa 9 KB, quindi allegarlo a ogni messaggio non e' un problema.
+PERCORSO_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "static", "logo_sigra.png")
+ID_LOGO = "logosigrafilm"
+
+_logo_letto = False
+_logo_dati = None
+
+
+def _logo() -> bytes | None:
+    """Byte del logo, letti una volta sola. None se il file non c'e'."""
+    global _logo_letto, _logo_dati
+    if not _logo_letto:
+        _logo_letto = True
+        try:
+            with open(PERCORSO_LOGO, "rb") as f:
+                _logo_dati = f.read()
+        except Exception as e:
+            print(f"[mail] Logo non caricato, le mail partiranno senza: {e}")
+            _logo_dati = None
+    return _logo_dati
+
+
+def _intestazione_logo() -> str:
+    """Riga con il logo in cima alla mail. Vuota se il logo manca."""
+    if not _logo():
+        return ""
+    return (
+        '<tr><td style="background:#ffffff;padding:18px 26px;'
+        'border-bottom:1px solid #e5e7eb;" align="center">'
+        f'<img src="cid:{ID_LOGO}" width="150" height="87" alt="SigraFilm" '
+        'style="display:block;border:0;outline:none;text-decoration:none;">'
+        '</td></tr>'
+    )
+
 
 def is_configured() -> bool:
     """True se c'è abbastanza configurazione per tentare l'invio."""
@@ -41,6 +79,22 @@ def _invia_smtp(imp, subject, html, testo, destinatario):
     msg["To"]      = destinatario
     msg.set_content(testo)
     msg.add_alternative(html, subtype="html")
+
+    # Il logo va agganciato alla parte HTML, non al messaggio: cosi' resta
+    # un'immagine incorporata nel testo e non compare come allegato da
+    # scaricare in fondo alla mail.
+    # Solo se l'HTML lo mostra davvero: allegarlo a un messaggio che non lo
+    # richiama lo farebbe comparire come allegato da scaricare, senza motivo.
+    dati_logo = _logo() if f"cid:{ID_LOGO}" in html else None
+    if dati_logo:
+        parte_html = msg.get_payload()[-1]
+        # disposition="inline" e' necessario: con "attachment" (quello che
+        # verrebbe messo da solo indicando un nome file) programmi come
+        # Outlook segnalano la graffetta dell'allegato anche se l'immagine
+        # e' gia' dentro al testo.
+        parte_html.add_related(dati_logo, maintype="image", subtype="png",
+                               cid=f"<{ID_LOGO}>", filename="sigrafilm.png",
+                               disposition="inline")
 
     host = imp["smtp_host"]
     porta = int(imp.get("smtp_port") or 465)
@@ -135,6 +189,7 @@ def _wrap(titolo: str, colore: str, righe: list[tuple[str, str]],
   <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;
     background:#ffffff;border-radius:10px;overflow:hidden;
     box-shadow:0 1px 3px rgba(0,0,0,.1);">
+    {_intestazione_logo()}
     <tr><td style="background:{colore};padding:18px 26px;">
       <div style="color:#ffffff;font-size:17px;font-weight:700;">{titolo}</div>
     </td></tr>
@@ -322,6 +377,7 @@ def invia_credenziali(username: str, password: str, email_cliente: str,
   <table cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;
     background:#ffffff;border-radius:10px;overflow:hidden;
     box-shadow:0 1px 3px rgba(0,0,0,.1);">
+    {_intestazione_logo()}
     <tr><td style="background:{colore};padding:22px 26px;">
       <div style="color:#ffffff;font-size:19px;font-weight:700;">
         Benvenuto nel portale assistenza SigraFilm</div>
