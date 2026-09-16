@@ -10,10 +10,11 @@ le cartelle `data/` e `allegati/` e il file `.secret_key` non ci sono proprio.
 
 ## 1. Ferma il sito
 
-Chiudi la finestra nera di `start_noc.bat` (o l'icona nella barra in basso
-a destra, se lo avvii con `start_noc.vbs`).
+Se il sito è già acceso con l'icona vicino all'orologio: tasto destro
+sull'icona → **Ferma il sito ed esci**. Altrimenti chiudi la finestra nera
+di `start_noc.bat`.
 
-Se resta aperto, Windows tiene i file Excel occupati e il salvataggio può
+Se resta acceso, Windows tiene i file Excel occupati e il salvataggio può
 dare *"Accesso negato"*.
 
 ## 2. Fai una copia dei dati
@@ -61,6 +62,24 @@ nuova e tutti devono solo rifare il login.
 ---
 
 ## Cosa c'è di nuovo
+
+### Icona vicino all'orologio
+
+Avviando il sito con `start_noc.bat` (o `start_noc.vbs`) compare un pallino
+rosso con la **S** in basso a destra, vicino all'orologio. Da lì:
+
+- **doppio clic** apre il sito nel browser
+- **tasto destro → Ferma il sito ed esci** lo spegne, con una domanda di
+  conferma prima. Niente più Gestione attività
+- passando il mouse sopra, vedi l'indirizzo da dare agli altri PC
+
+> **Se non la vedi:** Windows 11 nasconde le icone nuove. Premi la freccetta
+> **^** accanto all'orologio: l'icona è lì dentro. Per tenerla sempre in
+> vista trascinala fuori, oppure vai in *Impostazioni → Personalizzazione →
+> Barra delle applicazioni → Altre icone nell'area di notifica* e accendila.
+
+Se provi ad avviare il sito due volte, la seconda te lo dice invece di
+aprire un secondo processo che muore in silenzio.
 
 ### Registrazione dei clienti
 

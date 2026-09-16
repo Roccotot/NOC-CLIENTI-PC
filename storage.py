@@ -923,5 +923,20 @@ class ExcelStore:
         }
 
 
+def attendi_scritture(secondi: float = 5) -> bool:
+    """
+    Aspetta che nessun salvataggio sia in corso, al massimo per N secondi.
+
+    Serve a chi spegne il sito dall'icona vicino all'orologio: i file si
+    salvano su un temporaneo e poi si rinominano, quindi spegnere a meta'
+    non rovina i dati, ma lascerebbe un .tmp di scarto nella cartella data.
+    Restituisce True se ha fatto in tempo.
+    """
+    if not _lock.acquire(timeout=secondi):
+        return False
+    _lock.release()
+    return True
+
+
 # ── Istanza globale ───────────────────────────────────
 store = ExcelStore()
