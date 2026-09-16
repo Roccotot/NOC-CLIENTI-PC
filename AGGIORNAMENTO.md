@@ -11,8 +11,8 @@ le cartelle `data/` e `allegati/` e il file `.secret_key` non ci sono proprio.
 ## 1. Ferma il sito
 
 Se il sito è già acceso con l'icona vicino all'orologio: tasto destro
-sull'icona → **Ferma il sito ed esci**. Altrimenti chiudi la finestra nera
-di `start_noc.bat`.
+sull'icona → **Ferma il sito → Sì, ferma il sito**. Altrimenti chiudi la
+finestra nera di `start_noc.bat`.
 
 Se resta acceso, Windows tiene i file Excel occupati e il salvataggio può
 dare *"Accesso negato"*.
@@ -69,8 +69,9 @@ Avviando il sito con `start_noc.bat` (o `start_noc.vbs`) compare un pallino
 rosso con la **S** in basso a destra, vicino all'orologio. Da lì:
 
 - **doppio clic** apre il sito nel browser
-- **tasto destro → Ferma il sito ed esci** lo spegne, con una domanda di
-  conferma prima. Niente più Gestione attività
+- **tasto destro → Ferma il sito → Sì, ferma il sito** lo spegne. La
+  conferma è una seconda voce di menu, non una finestra, così non può
+  restare bloccata sotto il menu di Windows. Niente più Gestione attività
 - passando il mouse sopra, vedi l'indirizzo da dare agli altri PC
 
 > **Se non la vedi:** Windows 11 nasconde le icone nuove. Premi la freccetta

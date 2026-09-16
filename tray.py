@@ -12,8 +12,8 @@ Librerie richieste (sono gia' in requirements.txt):
 """
 import os
 import socket
-import sys
 import threading
+import time
 import traceback
 import webbrowser
 
@@ -33,12 +33,22 @@ REGISTRO_ERRORI = os.path.join(CARTELLA, "errore_avvio.log")
 # finestrelle un errore all'avvio sarebbe invisibile e il sito sembrerebbe
 # semplicemente "non partito".
 
-def _finestra(titolo: str, testo: str, icona: int = 0x40) -> None:
+# Opzioni delle finestrelle di Windows.
+# SOPRA_A_TUTTO e IN_PRIMO_PIANO servono perche' altrimenti la finestra puo'
+# nascere dietro le altre: si sente il suono ma non si vede niente e sembra
+# che il programma si sia piantato.
+SOPRA_A_TUTTO  = 0x40000        # MB_TOPMOST
+IN_PRIMO_PIANO = 0x10000        # MB_SETFOREGROUND
+
+
+def _finestra(titolo: str, testo: str, opzioni: int = 0x40) -> int:
     try:
         import ctypes
-        ctypes.windll.user32.MessageBoxW(0, testo, titolo, icona | 0x1000)
+        return ctypes.windll.user32.MessageBoxW(
+            0, testo, titolo, opzioni | SOPRA_A_TUTTO | IN_PRIMO_PIANO)
     except Exception:
         print(f"{titolo}\n{testo}")
+        return 0
 
 
 def _avviso(titolo, testo):
@@ -47,17 +57,6 @@ def _avviso(titolo, testo):
 
 def _errore(titolo, testo):
     _finestra(titolo, testo, 0x10)      # croce rossa
-
-
-def _domanda(titolo: str, testo: str) -> bool:
-    """True se l'utente risponde Si'. Se non si puo' chiedere, risponde Si'."""
-    try:
-        import ctypes
-        # 4 = Si'/No, 0x20 = punto interrogativo, 6 = ha premuto Si'
-        return ctypes.windll.user32.MessageBoxW(0, testo, titolo,
-                                                4 | 0x20 | 0x1000) == 6
-    except Exception:
-        return True
 
 
 def _registra_errore(intestazione: str) -> str:
@@ -181,20 +180,56 @@ def _attendi_fine_scritture(secondi: int = 5) -> None:
 
 # ── Voci del menu ───────────────────────────────────────
 
-def _apri_sito(icona=None, voce=None):
-    webbrowser.open(INDIRIZZO_LOCALE)
+# Le voci del menu girano nel thread dell'icona, che mentre esegue la voce
+# NON risponde piu' ai messaggi di Windows, e il menu appena chiuso tiene
+# ancora il comando del mouse. Aprire li' una finestra di conferma la fa
+# comparire senza poterci cliccare sopra: sembra tutto bloccato.
+#
+# Per questo la conferma NON e' una finestra ma un sottomenu, che Windows
+# gestisce da solo, e ogni voce fa partire un thread e torna subito cosi' il
+# menu si chiude davvero.
+
+def _in_disparte(funzione):
+    def voce(icona=None, elemento=None):
+        threading.Thread(target=funzione, args=(icona,), daemon=True).start()
+    return voce
 
 
-def _esci(icona, voce):
-    if not _domanda("SigraFilm NOC",
-                    "Vuoi fermare il sito?\n\n"
-                    "Chi lo sta usando in questo momento non riuscira' piu' "
-                    "ad aprirlo finche' non lo riavvii."):
-        return
-    icona.visible = False
-    icona.stop()
+def _apri_sito_ora(icona=None):
+    try:
+        webbrowser.open(INDIRIZZO_LOCALE)
+    except Exception:
+        _registra_errore("Non sono riuscito ad aprire il browser")
+
+
+def _chiudi_ora(icona=None):
+    """
+    Prepara la chiusura e poi smonta l'icona.
+
+    L'ordine conta: prima si aspetta che finiscano i salvataggi, poi si
+    ferma l'icona. Facendo il contrario, il thread principale esce da
+    icona.run() e chiude il programma mentre questo thread sta ancora
+    aspettando, cioe' proprio quando serviva aspettare.
+
+    A chiudere il processo ci pensa main(), quando icona.run() ritorna.
+    """
+    time.sleep(0.2)               # lascia che il menu si chiuda del tutto
     _attendi_fine_scritture()
-    os._exit(0)
+    try:
+        if icona is not None:
+            icona.stop()
+    except Exception:
+        _registra_errore("Errore fermando l'icona")
+        os._exit(0)
+
+
+def _niente(icona=None, elemento=None):
+    """Voce "No": chiude il menu e basta."""
+    return
+
+
+_apri_sito = _in_disparte(_apri_sito_ora)
+_esci      = _in_disparte(_chiudi_ora)
 
 
 def main():
@@ -228,6 +263,12 @@ def main():
     threading.Thread(target=_avvia_server, daemon=True).start()
     icona.run()
 
+    # Si arriva qui solo scegliendo "Si', ferma il sito". Il server gira in
+    # un thread daemon, ma waitress puo' lasciarne altri in piedi: senza
+    # questa riga il processo rischia di restare aperto senza piu' icona,
+    # e non ci sarebbe piu' modo di fermarlo se non dalla Gestione attivita'.
+    os._exit(0)
+
 
 def _costruisci_icona(pystray):
     in_rete = _indirizzo_in_rete()
@@ -241,7 +282,12 @@ def _costruisci_icona(pystray):
             pystray.MenuItem("Apri il sito", _apri_sito, default=True),
             pystray.MenuItem(f"Dagli altri PC: {in_rete}", None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Ferma il sito ed esci", _esci),
+            # La conferma e' un sottomenu e non una finestra: le finestre
+            # aperte da qui restano bloccate sotto il menu di Windows.
+            pystray.MenuItem("Ferma il sito", pystray.Menu(
+                pystray.MenuItem("Si', ferma il sito", _esci),
+                pystray.MenuItem("No, lascialo acceso", _niente),
+            )),
         ),
     )
 
