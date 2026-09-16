@@ -94,8 +94,8 @@
       </div>
 
       {% if users %}
-        <div class="table-responsive" style="border:none; border-radius:0;">
-          <table class="table table-striped table-hover sortable" style="margin:0;">
+        <div class="table-responsive contenitore-schede" style="border:none; border-radius:0;">
+          <table class="table table-striped table-hover sortable tabella-schede" style="margin:0;">
             <thead class="table-dark">
               <tr>
                 <th class="d-none d-md-table-cell" style="cursor:pointer;">ID</th>
@@ -112,28 +112,22 @@
               {% for u in users %}
               <tr>
                 <td class="d-none d-md-table-cell" style="color:var(--text-3); font-size:.78rem; font-weight:500;">#{{ u.id }}</td>
-                <td style="font-weight:500; color:#fff;">
+                <td class="scheda-titolo" style="font-weight:500; color:#fff;">
                   {{ u.username }}
-                  <!-- Info aggiuntive visibili solo su mobile -->
-                  <div class="d-lg-none" style="font-size:.72rem; color:var(--text-3); font-weight:400; margin-top:.15rem;">
-                    {% if u.telefono %}{{ u.telefono }}{% endif %}
-                    {% if u.telefono and u.email %} · {% endif %}
-                    {% if u.email %}{{ u.email }}{% endif %}
-                  </div>
                 </td>
-                <td class="d-none d-md-table-cell" style="font-size:.82rem; font-family:monospace; color:var(--text-2);">
+                <td class="d-none d-md-table-cell" data-etichetta="Password" style="font-size:.82rem; font-family:monospace; color:var(--text-2);">
                   {% if u.password_plain %}{{ u.password_plain }}{% else %}<span style="color:var(--text-3); font-family:inherit;">non nota</span>{% endif %}
                 </td>
-                <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
-                <td class="d-none d-lg-table-cell" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
-                <td>
+                <td class="d-none d-lg-table-cell" data-etichetta="Telefono" style="color:var(--text-2); font-size:.82rem;">{{ u.telefono or '—' }}</td>
+                <td class="d-none d-lg-table-cell" data-etichetta="Email" style="color:var(--text-2); font-size:.82rem;">{{ u.email or '—' }}</td>
+                <td data-etichetta="Ruolo">
                   {% if u.role == 'admin' %}
                     <span class="nbadge nbadge-admin">Admin</span>
                   {% else %}
                     <span class="nbadge nbadge-user">User</span>
                   {% endif %}
                 </td>
-                <td class="d-none d-lg-table-cell" style="font-size:.78rem; max-width:260px;">
+                <td class="d-none d-lg-table-cell" data-etichetta="Cinema" style="font-size:.78rem; max-width:260px;">
                   {% if u.role == 'admin' %}
                     <span style="color:var(--text-3);">tutti</span>
                   {% else %}
@@ -147,7 +141,7 @@
                     {% endif %}
                   {% endif %}
                 </td>
-                <td class="text-nowrap">
+                <td class="text-nowrap scheda-azioni">
                   {% if u.email %}
                     <form method="post" class="d-inline"
                       action="{{ url_for('invia_credenziali', user_id=u.id) }}"

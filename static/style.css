@@ -867,8 +867,18 @@ select:-webkit-autofill {
     letter-spacing: .04em;
     text-transform: uppercase;
   }
-  /* Celle senza etichetta: il valore occupa tutta la riga */
-  .tabella-schede td:not([data-etichetta])::before { display: none; }
+  /* Celle senza etichetta e senza ruolo (numero di riga, ID): in scheda
+     sarebbero numeri sciolti senza significato, quindi si nascondono.
+     L'ID resta comunque leggibile nel sottotitolo del ticket. */
+  .tabella-schede td:not([data-etichetta]):not(.scheda-titolo):not(.scheda-azioni) {
+    display: none !important;
+  }
+
+  /* Il valore puo' essere lungo: indirizzi, email, descrizioni */
+  .tabella-schede td {
+    overflow-wrap: anywhere;
+  }
+  .tabella-schede td > * { min-width: 0; }
 
   /* Il nome del cinema fa da titolo della scheda */
   .tabella-schede td.scheda-titolo {
@@ -889,7 +899,17 @@ select:-webkit-autofill {
     background: rgba(255,255,255,.02);
   }
   .tabella-schede td.scheda-azioni::before { display: none; }
-  .tabella-schede td.scheda-azioni .btn { padding: .3rem .9rem; }
+
+  /* Col dito servono bersagli piu' grandi: i pulsanti a icona in tabella
+     sono larghi una ventina di pixel, sotto la soglia in cui si centrano
+     senza sbagliare. In scheda diventano quadrati da 40px. */
+  .tabella-schede td.scheda-azioni .btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: .4rem .8rem;
+    font-size: .95rem;
+  }
+  .tabella-schede td.scheda-azioni form { display: inline-flex; }
 
   /* Niente scorrimento orizzontale: la scheda sta gia' nella pagina.
      La classe sta sul contenitore invece di usare :has(), che i browser
