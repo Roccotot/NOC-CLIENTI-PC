@@ -285,7 +285,7 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
 
 
 def notifica_richiesta_registrazione(nome: str, username: str, email: str,
-                                     telefono: str, nome_cinema: str) -> None:
+                                     telefono: str, cinema) -> None:
     """
     Avvisa l'assistenza che qualcuno ha chiesto l'accesso dalla pagina di login.
 
@@ -296,10 +296,14 @@ def notifica_richiesta_registrazione(nome: str, username: str, email: str,
     base = impostazioni.leggi("app_base_url").rstrip("/")
     link = f"{base}/users" if base else ""
 
+    # Accetta sia un nome solo sia l'elenco dei cinema spuntati
+    elenco = [cinema] if isinstance(cinema, str) else list(cinema or [])
+    etichetta = "Cinema" if len(elenco) == 1 else f"Cinema ({len(elenco)})"
+
     righe = [
         ("Nome",        _escape(nome)),
         ("Nome utente", _escape(username)),
-        ("Cinema",      _escape(nome_cinema)),
+        (etichetta,     "<br>".join(_escape(n) for n in elenco)),
         ("Telefono",    _escape(telefono)),
         ("Email",       _escape(email)),
     ]
@@ -320,14 +324,15 @@ def notifica_richiesta_registrazione(nome: str, username: str, email: str,
                   f'border-radius:6px;font-size:14px;font-weight:600;">'
                   f'Apri la pagina Utenti</a></p>')
 
-    subject = f"[NOC] Richiesta di accesso — {nome_cinema}"
+    riassunto = elenco[0] if len(elenco) == 1 else f"{len(elenco)} cinema"
+    subject = f"[NOC] Richiesta di accesso — {riassunto}"
     html    = _wrap("Nuova richiesta di accesso", colore, righe, corpo, "")
 
     testo = (
         f"Nuova richiesta di accesso al portale\n\n"
         f"Nome:        {nome}\n"
         f"Nome utente: {username}\n"
-        f"Cinema:      {nome_cinema}\n"
+        f"Cinema:      {', '.join(elenco)}\n"
         f"Telefono:    {telefono}\n"
         f"Email:       {email}\n\n"
         f"La richiesta e' in attesa nella pagina Utenti. Per approvarla premi\n"

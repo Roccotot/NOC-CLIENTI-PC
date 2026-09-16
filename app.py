@@ -256,11 +256,10 @@ def _nome_utente_da(nome: str) -> str:
 @app.route("/registrati", methods=["GET", "POST"])
 def registrati():
     """
-    Il responsabile di un cinema chiede l'accesso da solo.
+    Primo passo: chi e' e quali cinema gestisce.
 
-    Non crea un utente utilizzabile: crea una richiesta che compare nella
-    pagina Utenti. La password la genera e la manda l'amministratore con
-    il pulsante ✉, così nessuno entra senza essere stato approvato.
+    I dati restano nella sessione e l'utente viene creato solo alla fine del
+    secondo passo, cosi' chi si ferma a meta' non lascia richieste monche.
     """
     cinemas = store.get_all_cinemas(order_by="città_nome")
 
@@ -268,10 +267,10 @@ def registrati():
         nome     = request.form.get("nome", "").strip()
         telefono = request.form.get("telefono", "").strip()
         email    = request.form.get("email", "").strip()
-        cinema_id = request.form.get("cinema_id", "").strip()
+        scelti   = [int(x) for x in request.form.getlist("cinema_ids") if x.isdigit()]
 
         dati = {"nome": nome, "telefono": telefono, "email": email,
-                "cinema_id": cinema_id}
+                "cinema_ids": scelti}
 
         def _rifiuta(messaggio, categoria="danger"):
             flash(messaggio, categoria)
@@ -287,8 +286,13 @@ def registrati():
         if len(telefono) < 6:
             return _rifiuta("Lascia un numero di telefono per poterti "
                             "contattare in caso di urgenze.")
-        if not cinema_id.isdigit() or not store.get_cinema_by_id(int(cinema_id)):
-            return _rifiuta("Scegli il cinema che devi gestire.")
+
+        validi = [c.id for c in cinemas if c.id in scelti]
+        if not validi:
+            return _rifiuta("Spunta almeno un cinema fra quelli che gestisci.")
+        if len(validi) > 20:
+            return _rifiuta("Hai spuntato troppi cinema. Se ne gestisci "
+                            "davvero così tanti, scrivici direttamente.")
 
         # Due richieste per la stessa persona sarebbero solo lavoro doppio.
         # Il confronto e' sul nome per esteso e sullo username che ne esce,
@@ -305,8 +309,47 @@ def registrati():
             return _rifiuta("Al momento non possiamo accettare altre richieste. "
                             "Riprova più tardi o scrivici direttamente.", "warning")
 
-        cinema = store.get_cinema_by_id(int(cinema_id))
-        username = _nome_utente_da(nome)
+        session["registrazione"] = {"nome": nome, "telefono": telefono,
+                                    "email": email, "cinema_ids": validi}
+        return redirect(url_for("registrati_recapiti"))
+
+    # Tornando indietro dal secondo passo si ritrova quello che si era scritto
+    return render_template("registrati.html", cinemas=cinemas,
+                           dati=session.get("registrazione") or {})
+
+
+@app.route("/registrati/recapiti", methods=["GET", "POST"])
+def registrati_recapiti():
+    """
+    Secondo passo: i recapiti di spedizione dei cinema spuntati.
+
+    I valori NON vanno subito nell'anagrafica: restano in attesa e li
+    applica l'amministratore approvando la richiesta. Altrimenti chiunque
+    potrebbe registrarsi dicendo di gestire un cinema vero e cambiargli
+    l'indirizzo di spedizione prima che qualcuno se ne accorga.
+    """
+    bozza = session.get("registrazione")
+    if not bozza:
+        flash("Ricomincia dai tuoi dati.", "info")
+        return redirect(url_for("registrati"))
+
+    scelti = sorted(store.get_cinemas_by_ids(bozza["cinema_ids"]),
+                    key=lambda c: ((c.città or "").lower(), c.nome.lower()))
+    if not scelti:
+        session.pop("registrazione", None)
+        flash("Ricomincia dai tuoi dati.", "info")
+        return redirect(url_for("registrati"))
+
+    if request.method == "POST":
+        recapiti = []
+        for c in scelti:
+            recapiti.append({
+                "cinema_id": c.id,
+                "telefono":  request.form.get(f"telefono_{c.id}", "").strip()[:40],
+                "indirizzo": request.form.get(f"indirizzo_{c.id}", "").strip()[:200],
+            })
+
+        username = _nome_utente_da(bozza["nome"])
 
         # Password casuale mai comunicata a nessuno: serve solo a non lasciare
         # la riga senza hash. Quella vera la genera l'amministratore.
@@ -314,22 +357,27 @@ def registrati():
             username=username,
             password_hash=generate_password_hash(secrets.token_urlsafe(32)),
             password_plain="",
-            role="user", telefono=telefono, email=email,
-            stato="richiesta", nome=nome,
+            role="user", telefono=bozza["telefono"], email=bozza["email"],
+            stato="richiesta", nome=bozza["nome"],
         )
-        store.set_user_cinemas(nuovo.id, [cinema.id])
+        store.set_user_cinemas(nuovo.id, [c.id for c in scelti])
+        store.salva_recapiti_proposti(nuovo.id,
+                                      [r for r in recapiti
+                                       if r["telefono"] or r["indirizzo"]])
 
         try:
-            mailer.notifica_richiesta_registrazione(nome, username, email,
-                                                    telefono, cinema.nome)
+            mailer.notifica_richiesta_registrazione(
+                bozza["nome"], username, bozza["email"], bozza["telefono"],
+                [c.nome for c in scelti])
         except Exception as e:
             app.logger.warning("Notifica registrazione non inviata: %s", e)
 
+        session.pop("registrazione", None)
         flash("Richiesta inviata. Ti manderemo le credenziali per email "
               "appena l'avremo controllata.", "success")
         return redirect(url_for("login"))
 
-    return render_template("registrati.html", cinemas=cinemas, dati={})
+    return render_template("registrati_recapiti.html", cinemas=scelti, bozza=bozza)
 
 
 # NOTA: la vecchia route "/reset-admin-password-7x9k" è stata rimossa.
@@ -880,7 +928,16 @@ def user_detail(user_id):
         return redirect(url_for("user_detail", user_id=u.id))
     all_cinemas  = store.get_all_cinemas(order_by="città_nome")
     assigned_ids = set(store.get_cinema_ids_for_user(u.id))
-    return render_template("user_detail.html", u=u, all_cinemas=all_cinemas, assigned_ids=assigned_ids)
+
+    # Recapiti indicati registrandosi e non ancora applicati: si mostrano
+    # cosi' chi approva sa cosa sta per finire nell'anagrafica.
+    nomi = {c.id: c.nome for c in all_cinemas}
+    proposti = [dict(v, nome=nomi.get(v["cinema_id"], "?"),
+                     attuale=store.get_cinema_by_id(v["cinema_id"]))
+                for v in store.get_recapiti_proposti(u.id)]
+
+    return render_template("user_detail.html", u=u, all_cinemas=all_cinemas,
+                           assigned_ids=assigned_ids, proposti=proposti)
 
 
 # --- INVIA CREDENZIALI AL NUOVO UTENTE ---
@@ -916,8 +973,15 @@ def invia_credenziali(user_id):
     store.update_user(u)
 
     if era_richiesta:
-        flash(f"Richiesta approvata: «{u.username}» ha ricevuto le credenziali "
-              f"a {u.email} e può entrare.", "success")
+        # I recapiti che aveva indicato registrandosi erano rimasti in
+        # attesa: l'approvazione e' il momento in cui diventano buoni.
+        aggiornati = store.applica_recapiti_proposti(u.id)
+        messaggio = (f"Richiesta approvata: «{u.username}» ha ricevuto le "
+                     f"credenziali a {u.email} e può entrare.")
+        if aggiornati:
+            messaggio += (f" Aggiornati i recapiti di {aggiornati} cinema "
+                          f"con quelli che aveva indicato.")
+        flash(messaggio, "success")
     else:
         flash(f"Credenziali inviate a {u.email}. "
               f"La password di «{u.username}» è stata rigenerata.", "success")
@@ -941,8 +1005,11 @@ def reset_password(user_id):
     # Se era una richiesta in attesa, scegliergli la password a mano vale
     # come approvazione: altrimenti resterebbe bloccato fuori con una
     # password valida in mano.
+    era_richiesta    = u.stato == "richiesta"
     u.stato          = "attivo"
     store.update_user(u)
+    if era_richiesta:
+        store.applica_recapiti_proposti(u.id)
     flash(f"Password di '{u.username}' aggiornata con successo.", "success")
     return redirect(url_for("admin_users"))
 

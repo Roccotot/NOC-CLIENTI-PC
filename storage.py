@@ -308,6 +308,7 @@ class ExcelStore:
         "commenti.xlsx":         ["id", "problem_id", "autore", "role", "testo", "data_ora"],
         "letture.xlsx":          ["id", "user_id", "problem_id", "last_read_at"],
         "assegnazioni.xlsx":     ["id", "user_id", "cinema_id"],
+        "recapiti_proposti.xlsx": ["id", "user_id", "cinema_id", "telefono", "indirizzo"],
     }
 
     def _rows(self, filename: str) -> list:
@@ -388,6 +389,9 @@ class ExcelStore:
             # rimuovi assegnazioni
             arows = [r for r in self._rows("assegnazioni.xlsx") if _i(r[1]) != uid]
             self._overwrite("assegnazioni.xlsx", arows)
+            # e gli eventuali recapiti che aveva proposto registrandosi
+            rrows = [r for r in self._rows("recapiti_proposti.xlsx") if _i(r[1]) != uid]
+            self._overwrite("recapiti_proposti.xlsx", rrows)
 
     def count_admins(self) -> int:
         return sum(1 for u in self.get_all_users() if u.role == "admin")
@@ -711,6 +715,63 @@ class ExcelStore:
             for i, cid in enumerate(cinema_ids):
                 rows.append((base_id + i, user_id, cid))
             self._overwrite("assegnazioni.xlsx", rows)
+
+    # ── RECAPITI PROPOSTI IN REGISTRAZIONE ────────────
+    #
+    # Chi si registra indica telefono e indirizzo dei cinema che dice di
+    # gestire. Quei valori NON finiscono subito nell'anagrafica: chiunque
+    # potrebbe registrarsi dicendo di gestire un cinema vero e cambiargli
+    # l'indirizzo di spedizione prima che qualcuno se ne accorga. Restano
+    # qui in attesa e vengono applicati quando l'amministratore approva.
+
+    def salva_recapiti_proposti(self, user_id: int, voci: List[dict]):
+        """voci: [{"cinema_id": int, "telefono": str, "indirizzo": str}, ...]"""
+        with _lock:
+            rows = [r for r in self._rows("recapiti_proposti.xlsx")
+                    if _i(r[1]) != user_id]
+            base_id = _next_id(rows) if rows else 1
+            for i, v in enumerate(voci):
+                rows.append((base_id + i, user_id, int(v["cinema_id"]),
+                             _s(v.get("telefono")), _s(v.get("indirizzo"))))
+            self._overwrite("recapiti_proposti.xlsx", rows)
+
+    def get_recapiti_proposti(self, user_id: int) -> List[dict]:
+        with _lock:
+            return [{"cinema_id": _i(r[2]), "telefono": _s(r[3]),
+                     "indirizzo": _s(r[4])}
+                    for r in self._rows("recapiti_proposti.xlsx")
+                    if _i(r[1]) == user_id]
+
+    def elimina_recapiti_proposti(self, user_id: int):
+        with _lock:
+            rows = [r for r in self._rows("recapiti_proposti.xlsx")
+                    if _i(r[1]) != user_id]
+            self._overwrite("recapiti_proposti.xlsx", rows)
+
+    def applica_recapiti_proposti(self, user_id: int) -> int:
+        """
+        Scrive nell'anagrafica i recapiti proposti e poi li archivia.
+        Restituisce quanti cinema sono stati aggiornati.
+        """
+        proposti = self.get_recapiti_proposti(user_id)
+        aggiornati = 0
+        for v in proposti:
+            c = self.get_cinema_by_id(v["cinema_id"])
+            if not c:
+                continue
+            cambiato = False
+            if v["telefono"] and v["telefono"] != c.telefono:
+                c.telefono = v["telefono"]
+                cambiato = True
+            if v["indirizzo"] and v["indirizzo"] != c.indirizzo:
+                c.indirizzo = v["indirizzo"]
+                cambiato = True
+            if cambiato:
+                self.update_cinema(c)
+                aggiornati += 1
+        if proposti:
+            self.elimina_recapiti_proposti(user_id)
+        return aggiornati
 
     # ── SEED ──────────────────────────────────────────
 

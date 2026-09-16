@@ -92,13 +92,25 @@ senza doverti scrivere. Sono i due dati che cambiano più spesso, e l'indirizzo
 Nome, città e numero di sale restano solo tuoi: cambiare il nome rinominerebbe
 il cinema anche sui ticket già aperti.
 
-### Registrazione dei clienti
+### Registrazione dei clienti, in due passi
 
-Nella pagina di login c'è il pulsante **Registrati**. Il responsabile di un
-cinema compila nome e cognome, sceglie il cinema che gestisce e lascia
-telefono ed email.
+Nella pagina di login c'è il pulsante **Registrati**.
 
-Non entra subito: la sua richiesta arriva a te.
+1. **Chi sei e cosa gestisci** — nome e cognome, telefono, email e le spunte
+   sui cinema che gestisce (uno o più di uno, con una casella per cercarli).
+2. **Recapiti spedizioni** — per ogni cinema spuntato, telefono e indirizzo.
+   Scrivendo l'indirizzo compaiono i suggerimenti come nelle mappe: si
+   sceglie una voce e il campo si riempie da solo con via, civico, CAP e
+   città. Se il servizio non risponde si scrive a mano, come prima.
+
+Così i recapiti arrivano già compilati e non devi rincorrerli dopo.
+
+> I recapiti indicati **non finiscono subito nell'anagrafica**: li vedi nel
+> dettaglio dell'utente e vengono applicati quando approvi la richiesta.
+> Altrimenti chiunque potrebbe registrarsi dicendo di gestire un cinema
+> vero e cambiargli l'indirizzo di spedizione.
+
+**Chi si registra non entra subito**: la sua richiesta arriva a te.
 
 - ti arriva una **email** a `assistenza@sigrafilm.it`
 - nella pagina **Utenti** compare in cima, con la scritta gialla

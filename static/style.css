@@ -379,11 +379,18 @@ body.login-bg {
     radial-gradient(ellipse 60% 50% at 15% 65%, rgba(230,57,70,.07) 0%, transparent 65%),
     radial-gradient(ellipse 50% 40% at 85% 25%, rgba(31,111,235,.05) 0%, transparent 65%);
   display: flex;
+  /* In colonna, con il pie' di pagina come ultimo elemento. I margini
+     automatici al posto di justify-content: center centrano il riquadro
+     quando c'e' spazio, ma quando la pagina e' piu' alta dello schermo
+     (la registrazione, con l'elenco dei cinema) si annullano invece di
+     tagliare via la parte alta. */
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   min-height: 100vh;
   padding: 1rem;
 }
+
+body.login-bg .login-box { margin-top: auto; }
 
 .login-box {
   background: var(--bg-card);
@@ -404,6 +411,31 @@ body.login-bg {
   text-align: center;
   margin-bottom: 1.75rem;
 }
+
+/* ─── SUGGERIMENTI INDIRIZZO ───────────────────────── */
+.suggerimenti {
+  position: absolute;
+  z-index: 1060;               /* sopra le schede e i bordi delle card */
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+}
+.suggerimento {
+  padding: .55rem .8rem;
+  font-size: .85rem;
+  color: var(--text-1);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.suggerimento:last-child { border-bottom: none; }
+.suggerimento:hover,
+.suggerimento.attivo { background: rgba(88, 166, 255, .12); }
 
 /* Titoletto di una sezione dentro una scheda (es. "Recapiti spedizioni") */
 .titolo-recapiti {
@@ -426,15 +458,14 @@ body.login-bg {
   color: var(--text-3);
 }
 
-/* Nelle pagine di accesso il corpo e' centrato con flex: senza toglierlo
-   dal flusso il pie' finirebbe di fianco al riquadro invece che sotto. */
+/* Nelle pagine di accesso il pie' e' l'ultimo elemento della colonna: il
+   margine automatico lo tiene in fondo quando la pagina e' corta e lo
+   lascia scorrere con il resto quando e' lunga. Prima era fissato in basso
+   e finiva sopra l'elenco dei cinema della registrazione. */
 body.login-bg .pie-pagina {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0;
-  padding: .9rem 1rem;
+  width: 100%;
+  margin-top: auto;
+  padding: 1.2rem 1rem .4rem;
   border-top: none;
 }
 

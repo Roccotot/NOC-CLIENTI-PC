@@ -77,6 +77,47 @@
       </div>
     {% endif %}
 
+    {% if proposti %}
+      <div class="card shadow-sm mb-4">
+        <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
+          <div class="card-title" style="margin:0;">Recapiti indicati registrandosi</div>
+          <div style="font-size:.78rem; color:var(--text-3); margin-top:.15rem;">
+            Non sono ancora nell'anagrafica: li applico quando approvi la
+            richiesta con ✉. Se non ti convincono, rifiuta con ✕.
+          </div>
+        </div>
+        <div class="card-body">
+          {% for p in proposti %}
+            <div style="{% if not loop.last %}border-bottom:1px solid var(--border); padding-bottom:.8rem; margin-bottom:.8rem;{% endif %}">
+              <div style="font-weight:600; color:#fff; font-size:.9rem; margin-bottom:.35rem;">
+                {{ p.nome }}
+              </div>
+              {% if p.telefono %}
+                <div style="font-size:.82rem; color:var(--text-2);">
+                  <span style="color:var(--text-3);">Telefono:</span> {{ p.telefono }}
+                  {% if p.attuale and p.attuale.telefono and p.attuale.telefono != p.telefono %}
+                    <span style="color:var(--yellow); font-size:.76rem;">
+                      (sostituirà «{{ p.attuale.telefono }}»)
+                    </span>
+                  {% endif %}
+                </div>
+              {% endif %}
+              {% if p.indirizzo %}
+                <div style="font-size:.82rem; color:var(--text-2); overflow-wrap:anywhere;">
+                  <span style="color:var(--text-3);">Indirizzo:</span> {{ p.indirizzo }}
+                  {% if p.attuale and p.attuale.indirizzo and p.attuale.indirizzo != p.indirizzo %}
+                    <span style="color:var(--yellow); font-size:.76rem;">
+                      (sostituirà «{{ p.attuale.indirizzo }}»)
+                    </span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
     <!-- Recapiti: valgono per tutti, admin compresi -->
     <div class="card shadow-sm mb-4">
       <div style="padding:.85rem 1.25rem; border-bottom:1px solid var(--border);">
