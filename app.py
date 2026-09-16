@@ -736,9 +736,20 @@ def impostazioni_notifiche():
                 return redirect(url_for("impostazioni_notifiche"))
             destinatario = impostazioni.leggi("notify_email")
             try:
+                # Si usa lo stesso modello delle notifiche vere: così la
+                # prova mostra davvero come arriveranno, logo compreso.
                 mailer.invia_adesso(
                     "[SigraFilm NOC] Prova invio notifiche",
-                    "<p>Se leggi questo messaggio, le notifiche del NOC funzionano.</p>",
+                    mailer._wrap(
+                        "Prova riuscita", "#16a34a",
+                        [("Casella", impostazioni.leggi("smtp_user")),
+                         ("Server", impostazioni.leggi("smtp_host"))],
+                        '<p style="margin:20px 0 0;color:#374151;font-size:14px;'
+                        'line-height:1.5;">Se leggi questo messaggio le notifiche '
+                        'funzionano: le segnalazioni dei clienti arriveranno '
+                        'qui, con questo aspetto.</p>',
+                        "",
+                    ),
                     "Se leggi questo messaggio, le notifiche del NOC funzionano.",
                     destinatario,
                 )
