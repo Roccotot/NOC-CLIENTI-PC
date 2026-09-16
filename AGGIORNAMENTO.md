@@ -110,7 +110,7 @@ Così i recapiti arrivano già compilati e non devi rincorrerli dopo.
 > Altrimenti chiunque potrebbe registrarsi dicendo di gestire un cinema
 > vero e cambiargli l'indirizzo di spedizione.
 
-Non entra subito: la sua richiesta arriva a te.
+**Chi si registra non entra subito**: la sua richiesta arriva a te.
 
 - ti arriva una **email** a `assistenza@sigrafilm.it`
 - nella pagina **Utenti** compare in cima, con la scritta gialla
