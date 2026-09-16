@@ -229,8 +229,8 @@ def notifica_nuovo_messaggio(problem, autore: str, testo_msg: str) -> None:
     _send_async(subject, html, testo)
 
 
-def notifica_richiesta_registrazione(nome: str, email: str, telefono: str,
-                                     nome_cinema: str) -> None:
+def notifica_richiesta_registrazione(nome: str, username: str, email: str,
+                                     telefono: str, nome_cinema: str) -> None:
     """
     Avvisa l'assistenza che qualcuno ha chiesto l'accesso dalla pagina di login.
 
@@ -242,10 +242,11 @@ def notifica_richiesta_registrazione(nome: str, email: str, telefono: str,
     link = f"{base}/users" if base else ""
 
     righe = [
-        ("Nome",     _escape(nome)),
-        ("Cinema",   _escape(nome_cinema)),
-        ("Telefono", _escape(telefono)),
-        ("Email",    _escape(email)),
+        ("Nome",        _escape(nome)),
+        ("Nome utente", _escape(username)),
+        ("Cinema",      _escape(nome_cinema)),
+        ("Telefono",    _escape(telefono)),
+        ("Email",       _escape(email)),
     ]
 
     corpo = (
@@ -269,10 +270,11 @@ def notifica_richiesta_registrazione(nome: str, email: str, telefono: str,
 
     testo = (
         f"Nuova richiesta di accesso al portale\n\n"
-        f"Nome:     {nome}\n"
-        f"Cinema:   {nome_cinema}\n"
-        f"Telefono: {telefono}\n"
-        f"Email:    {email}\n\n"
+        f"Nome:        {nome}\n"
+        f"Nome utente: {username}\n"
+        f"Cinema:      {nome_cinema}\n"
+        f"Telefono:    {telefono}\n"
+        f"Email:       {email}\n\n"
         f"La richiesta e' in attesa nella pagina Utenti. Per approvarla premi\n"
         f"il pulsante di invio credenziali sulla sua riga.\n"
     )

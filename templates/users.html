@@ -127,6 +127,11 @@
                   {% if in_attesa_riga %}
                     <span class="nbadge nbadge-richiesta" style="margin-left:.4rem;">Nuova richiesta</span>
                   {% endif %}
+                  {% if u.nome %}
+                    <div style="font-weight:400; color:var(--text-3); font-size:.78rem; margin-top:.15rem;">
+                      {{ u.nome }}
+                    </div>
+                  {% endif %}
                 </td>
                 <td class="d-none d-md-table-cell" data-etichetta="Password" style="font-size:.82rem; font-family:monospace; color:var(--text-2);">
                   {% if in_attesa_riga %}

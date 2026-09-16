@@ -6,6 +6,7 @@ import os
 import io
 import re
 import secrets
+import unicodedata
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
@@ -223,6 +224,35 @@ def _email_valida(indirizzo: str) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", indirizzo))
 
 
+def _nome_utente_da(nome: str) -> str:
+    """
+    Trasforma "Mario Rossi" in "mario.rossi".
+
+    Al login il nome utente si digita spesso dal telefono: senza spazi,
+    senza accenti e tutto minuscolo si sbaglia molto piu' difficilmente.
+    Se il nome scelto e' gia' preso si aggiunge un numero in fondo.
+    """
+    # Accenti via: à->a, è->e, ç->c... senza dipendere da librerie esterne
+    pulito = unicodedata.normalize("NFKD", nome)
+    pulito = "".join(c for c in pulito if not unicodedata.combining(c))
+    pulito = pulito.lower()
+    pulito = re.sub(r"[\s_]+", ".", pulito.strip())
+    pulito = re.sub(r"[^a-z0-9.\-]", "", pulito)
+    pulito = re.sub(r"\.{2,}", ".", pulito).strip(".-")
+
+    # Nome scritto tutto in un alfabeto che qui non resta (cirillico, cinese…)
+    if not pulito:
+        pulito = "utente"
+
+    base = pulito[:40]
+    candidato = base
+    contatore = 1
+    while store.get_user_by_username(candidato):
+        contatore += 1
+        candidato = f"{base}{contatore}"
+    return candidato
+
+
 @app.route("/registrati", methods=["GET", "POST"])
 def registrati():
     """
@@ -260,7 +290,14 @@ def registrati():
         if not cinema_id.isdigit() or not store.get_cinema_by_id(int(cinema_id)):
             return _rifiuta("Scegli il cinema che devi gestire.")
 
-        if store.get_user_by_username(nome):
+        # Due richieste per la stessa persona sarebbero solo lavoro doppio.
+        # Il confronto e' sul nome per esteso e sullo username che ne esce,
+        # così si intercetta anche chi era stato creato a mano.
+        gia_presente = any(
+            (u.nome and u.nome.strip().lower() == nome.lower())
+            for u in store.get_all_users()
+        ) or bool(store.get_user_by_username(nome))
+        if gia_presente:
             return _rifiuta("Esiste già un accesso con questo nome. Se è il "
                             "tuo e hai perso la password, scrivici.", "warning")
 
@@ -269,20 +306,22 @@ def registrati():
                             "Riprova più tardi o scrivici direttamente.", "warning")
 
         cinema = store.get_cinema_by_id(int(cinema_id))
+        username = _nome_utente_da(nome)
 
         # Password casuale mai comunicata a nessuno: serve solo a non lasciare
         # la riga senza hash. Quella vera la genera l'amministratore.
         nuovo = store.create_user(
-            username=nome,
+            username=username,
             password_hash=generate_password_hash(secrets.token_urlsafe(32)),
             password_plain="",
             role="user", telefono=telefono, email=email,
-            stato="richiesta",
+            stato="richiesta", nome=nome,
         )
         store.set_user_cinemas(nuovo.id, [cinema.id])
 
         try:
-            mailer.notifica_richiesta_registrazione(nome, email, telefono, cinema.nome)
+            mailer.notifica_richiesta_registrazione(nome, username, email,
+                                                    telefono, cinema.nome)
         except Exception as e:
             app.logger.warning("Notifica registrazione non inviata: %s", e)
 
@@ -806,6 +845,7 @@ def user_detail(user_id):
 
             vecchio_nome = u.username
             u.username = nuovo_nome
+            u.nome     = request.form.get("nome", "").strip()
             u.telefono = request.form.get("telefono", "").strip()
             u.email    = request.form.get("email", "").strip()
             store.update_user(u)
@@ -1244,10 +1284,11 @@ def export_excel():
 
     if foglio in ("utenti", "tutto") and is_admin:
         ws = new_sheet("Utenti")
-        style_header(ws, ["ID", "Username", "Ruolo", "Email", "Telefono", "Stato"])
+        style_header(ws, ["ID", "Username", "Nome e cognome", "Ruolo",
+                          "Email", "Telefono", "Stato"])
         for u in sorted(store.get_all_users(), key=lambda x: x.id):
             stato = "In attesa di approvazione" if u.stato == "richiesta" else "Attivo"
-            ws.append([u.id, u.username, u.role, u.email, u.telefono, stato])
+            ws.append([u.id, u.username, u.nome, u.role, u.email, u.telefono, stato])
         autowidth(ws)
 
     buf = io.BytesIO()
