@@ -57,9 +57,10 @@
 
     {% if cinemas %}
       <p style="font-size:.82rem; color:var(--text-3); line-height:1.55; margin-bottom:1.4rem;">
-        Qui puoi tenere aggiornati telefono e indirizzo dei tuoi cinema: sono i
-        recapiti che usiamo per gli interventi e per le spedizioni. Per cambiare
-        il nome, la città o il numero di sale, scrivici.
+        Tieni aggiornati i recapiti per le spedizioni dei tuoi cinema: sono
+        quelli che usiamo per mandarti i pezzi di ricambio e per chiamarti
+        quando arriviamo per un intervento. Per cambiare il nome, la città o
+        il numero di sale, scrivici.
       </p>
 
       {% for c in cinemas %}
@@ -74,24 +75,34 @@
             <form method="post" action="{{ url_for('miei_cinema') }}">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <input type="hidden" name="cinema_id" value="{{ c.id }}">
+
+              <div class="titolo-recapiti">Recapiti spedizioni</div>
+              <div style="font-size:.78rem; color:var(--text-3); margin-bottom:1rem;">
+                Dove spediamo i pezzi di ricambio e a chi telefoniamo.
+              </div>
+
               <div class="row g-3">
                 <div class="col-12 col-md-4">
                   <label class="form-label">Telefono</label>
                   <input type="tel" name="telefono" class="form-control"
                          value="{{ c.telefono or '' }}" maxlength="40"
                          placeholder="es. 055 290746" autocomplete="off">
+                  <div style="font-size:.75rem; color:var(--text-3); margin-top:.3rem;">
+                    Il numero che chiamiamo per avvisarti.
+                  </div>
                 </div>
                 <div class="col-12 col-md-8">
-                  <label class="form-label">Indirizzo</label>
+                  <label class="form-label">Indirizzo di spedizione</label>
                   <input type="text" name="indirizzo" class="form-control"
                          value="{{ c.indirizzo or '' }}" maxlength="200"
                          placeholder="Via Roma 1, 50123 Firenze" autocomplete="off">
                   <div style="font-size:.75rem; color:var(--text-3); margin-top:.3rem;">
-                    È l'indirizzo a cui spediamo i pezzi di ricambio.
+                    Via, numero civico, CAP e città: è quello che stampiamo
+                    sull'etichetta del pacco.
                   </div>
                 </div>
               </div>
-              <button type="submit" class="btn btn-primary mt-3">Salva recapiti</button>
+              <button type="submit" class="btn btn-primary mt-3">Salva recapiti spedizioni</button>
             </form>
           </div>
         </div>
@@ -102,7 +113,7 @@
         <div class="empty-state-title">Nessun cinema assegnato</div>
         <div class="empty-state-sub">
           Scrivici e ti colleghiamo al tuo cinema: da qui potrai poi tenerne
-          aggiornati telefono e indirizzo.
+          aggiornati i recapiti per le spedizioni.
         </div>
       </div>
     {% endif %}
