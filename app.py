@@ -1017,6 +1017,46 @@ def admin_cinemas():
                            tickets_map=tickets_map, gestori=gestori)
 
 
+@app.route("/miei-cinema", methods=["GET", "POST"])
+def miei_cinema():
+    """
+    I cinema assegnati all'utente, con telefono e indirizzo modificabili.
+
+    Sono i due dati che cambiano piu' spesso e che il cliente conosce meglio
+    di noi: prima bisognava scriverci per farli correggere. Nome, citta' e
+    numero di sale restano all'amministratore, perche' toccarli rinomina il
+    cinema anche sui ticket gia' aperti.
+    """
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if session.get("role") == "admin":
+        return redirect(url_for("admin_cinemas"))   # lui ha la pagina completa
+
+    suoi = store.get_cinema_ids_for_user(session["user_id"])
+
+    if request.method == "POST":
+        try:
+            cid = int(request.form.get("cinema_id", ""))
+        except ValueError:
+            abort(400)
+        # Il controllo qui e' quello che conta: il modulo mostra solo i suoi
+        # cinema, ma l'identificativo arriva dal browser e si puo' cambiare.
+        if cid not in suoi:
+            return "Accesso negato", 403
+        c = store.get_cinema_by_id(cid)
+        if not c:
+            abort(404)
+        c.telefono  = request.form.get("telefono", "").strip()[:40]
+        c.indirizzo = request.form.get("indirizzo", "").strip()[:200]
+        store.update_cinema(c)
+        flash(f"Recapiti di «{c.nome}» aggiornati.", "success")
+        return redirect(url_for("miei_cinema"))
+
+    cinemas = sorted(store.get_cinemas_by_ids(suoi),
+                     key=lambda c: ((c.città or "").lower(), c.nome.lower()))
+    return render_template("miei_cinema.html", cinemas=cinemas)
+
+
 @app.route("/admin/cinemas/<int:cinema_id>/edit", methods=["GET", "POST"])
 def edit_cinema(cinema_id):
     if session.get("role") != "admin":

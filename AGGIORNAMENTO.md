@@ -82,6 +82,16 @@ rosso con la **S** in basso a destra, vicino all'orologio. Da lì:
 Se provi ad avviare il sito due volte, la seconda te lo dice invece di
 aprire un secondo processo che muore in silenzio.
 
+### I clienti aggiornano da soli telefono e indirizzo
+
+Nel menu in alto i clienti ora hanno **🎬 I miei cinema**: vedono soltanto i
+cinema che gestiscono e possono correggerne **telefono e indirizzo** da soli,
+senza doverti scrivere. Sono i due dati che cambiano più spesso, e l'indirizzo
+è quello che finisce sull'etichetta di spedizione.
+
+Nome, città e numero di sale restano solo tuoi: cambiare il nome rinominerebbe
+il cinema anche sui ticket già aperti.
+
 ### Registrazione dei clienti
 
 Nella pagina di login c'è il pulsante **Registrati**. Il responsabile di un

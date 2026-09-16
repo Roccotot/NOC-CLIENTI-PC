@@ -32,6 +32,8 @@
             <a href="{{ url_for('admin_cinemas') }}" class="btn btn-outline-light btn-sm">🎬 Cinema</a>
             <a href="{{ url_for('admin_users') }}" class="btn btn-outline-light btn-sm">👥 Utenti</a>
             <a href="{{ url_for('impostazioni_notifiche') }}" class="btn btn-outline-light btn-sm">🔔 Notifiche</a>
+          {% else %}
+            <a href="{{ url_for('miei_cinema') }}" class="btn btn-outline-light btn-sm">🎬 I miei cinema</a>
           {% endif %}
           <a href="{{ url_for('export_excel') }}?foglio=tutto" class="btn btn-outline-success btn-sm">📥 Scarica Excel</a>
           {% if session.get("role") == "admin" %}
