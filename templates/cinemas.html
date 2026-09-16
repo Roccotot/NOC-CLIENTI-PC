@@ -109,9 +109,9 @@
 
     <!-- Lista cinema -->
     <div class="card shadow-sm">
-      <div class="card-body" style="padding:0;">
+      <div class="card-body contenitore-schede" style="padding:0;">
         {% if cinemas %}
-          <table class="table table-hover mb-0 sortable" style="border-radius:10px; overflow:hidden; font-size:.875rem;">
+          <table class="table table-hover mb-0 sortable tabella-schede" style="border-radius:10px; overflow:hidden; font-size:.875rem;">
             <thead class="table-dark">
               <tr>
                 <th class="sorttable_nosort" style="width:2.5rem; font-size:.7rem;">#</th>
@@ -129,20 +129,20 @@
               {% for c in cinemas %}
               <tr>
                 <td style="color:var(--text-3); font-size:.75rem;">{{ loop.index }}</td>
-                <td style="color:var(--text-2);">{{ c.città }}</td>
-                <td style="color:var(--text-1);"><strong style="color:var(--text-1);">{{ c.nome }}</strong></td>
-                <td style="color:var(--text-2); font-size:.82rem;">{{ c.num_sale }}</td>
-                <td style="color:var(--text-2); white-space:nowrap;">
+                <td data-etichetta="Città" style="color:var(--text-2);">{{ c.città }}</td>
+                <td class="scheda-titolo" style="color:var(--text-1);"><strong style="color:var(--text-1);">{{ c.nome }}</strong></td>
+                <td data-etichetta="Sale" style="color:var(--text-2); font-size:.82rem;">{{ c.num_sale }}</td>
+                <td data-etichetta="Telefono" style="color:var(--text-2); white-space:nowrap;">
                   {% if c.telefono %}
                     <a href="tel:{{ c.telefono }}" class="text-decoration-none">{{ c.telefono }}</a>
                   {% else %}
                     <span style="color:var(--text-3);">—</span>
                   {% endif %}
                 </td>
-                <td style="color:var(--text-2); font-size:.82rem;" title="{{ c.indirizzo or '' }}">
+                <td data-etichetta="Indirizzo" style="color:var(--text-2); font-size:.82rem;" title="{{ c.indirizzo or '' }}">
                   {{ c.indirizzo or '—' }}
                 </td>
-                <td style="font-size:.78rem; max-width:220px;">
+                <td data-etichetta="Gestito da" style="font-size:.78rem; max-width:220px;">
                   {% set chi = gestori.get(c.id, []) %}
                   {% if chi %}
                     {% for nome in chi %}
@@ -152,7 +152,7 @@
                     <span style="color:var(--text-3);">nessuno</span>
                   {% endif %}
                 </td>
-                <td class="text-center">
+                <td data-etichetta="Ticket" class="text-center">
                   {% set tks = tickets_map.get(c.nome, []) %}
                   {% if tks %}
                     <button class="btn btn-sm btn-outline-danger"
@@ -164,7 +164,7 @@
                     <span style="color:var(--text-3); font-size:.8rem;">—</span>
                   {% endif %}
                 </td>
-                <td class="text-end text-nowrap">
+                <td class="text-end text-nowrap scheda-azioni">
                   <a href="{{ url_for('etichetta_cinema', cinema_id=c.id) }}"
                     class="btn btn-sm btn-outline-secondary me-1"
                     title="Scarica etichetta spedizione PDF"
