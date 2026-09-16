@@ -46,6 +46,11 @@ class User:
     role: str = "user"
     telefono: str = ""
     email: str = ""
+    # "attivo" = puo' entrare nel sito.
+    # "richiesta" = si e' registrato da solo dalla pagina di login e aspetta
+    # che un amministratore gli mandi la password. Finche' resta cosi' non
+    # ha una password valida e il login gli viene rifiutato.
+    stato: str = "attivo"
 
 
 @dataclass
@@ -291,7 +296,7 @@ class ExcelStore:
     """
 
     HEADERS = {
-        "utenti.xlsx":           ["id", "username", "password_hash", "password_plain", "role", "telefono", "email"],
+        "utenti.xlsx":           ["id", "username", "password_hash", "password_plain", "role", "telefono", "email", "stato"],
         "cinema.xlsx":           ["id", "nome", "città", "num_sale", "telefono", "indirizzo", "lat", "lng"],
         "cinema_eliminati.xlsx": ["id", "nome"],
         "tickets.xlsx":          ["id", "cinema", "città", "sala", "tipo", "urgenza", "stato",
@@ -325,11 +330,12 @@ class ExcelStore:
             id=_i(r[0]), username=_s(r[1]), password_hash=_s(r[2]),
             password_plain=_s(r[3]), role=_s(r[4]) or "user",
             telefono=_s(r[5]), email=_s(r[6]),
+            stato=(_s(r[7]) if len(r) > 7 else "") or "attivo",
         )
 
     def _user_to_row(self, u: User) -> tuple:
         return (u.id, u.username, u.password_hash, u.password_plain,
-                u.role, u.telefono, u.email)
+                u.role, u.telefono, u.email, u.stato)
 
     def get_all_users(self) -> List[User]:
         with _lock:
@@ -351,13 +357,14 @@ class ExcelStore:
 
     def create_user(self, username: str, password_hash: str,
                     password_plain: str = "",
-                    role: str = "user", telefono: str = "", email: str = "") -> User:
+                    role: str = "user", telefono: str = "", email: str = "",
+                    stato: str = "attivo") -> User:
         with _lock:
             rows = self._rows("utenti.xlsx")
             new_id = _next_id(rows)
             u = User(id=new_id, username=username, password_hash=password_hash,
                      password_plain=password_plain,
-                     role=role, telefono=telefono, email=email)
+                     role=role, telefono=telefono, email=email, stato=stato)
             rows.append(self._user_to_row(u))
             self._overwrite("utenti.xlsx", rows)
             return u
@@ -735,6 +742,42 @@ class ExcelStore:
         print(f"[migrazione] Ripristinata la colonna password in utenti.xlsx "
               f"({len(righe)} utenti, valori da riempire)")
 
+    def _migra_colonna_stato(self):
+        """
+        Aggiunge la colonna 'stato' a utenti.xlsx se manca.
+
+        Serve a distinguere chi si e' registrato da solo e aspetta la
+        password ("richiesta") da chi puo' gia' entrare ("attivo"). Chi
+        c'era prima della registrazione libera e' ovviamente gia' attivo.
+        """
+        percorso = _path("utenti.xlsx")
+        if not os.path.exists(percorso):
+            return
+        try:
+            wb = openpyxl.load_workbook(percorso)
+            ws = wb.active
+            intestazione = [_s(c) for c in next(ws.iter_rows(values_only=True), ())]
+        except Exception as e:
+            print(f"[migrazione] utenti.xlsx non leggibile: {e}")
+            return
+
+        if "stato" in intestazione:
+            return   # gia' a posto
+
+        righe = []
+        for r in list(ws.iter_rows(min_row=2, values_only=True)):
+            if not r or r[0] is None:
+                continue
+            righe.append(tuple(r[:7]) + ("attivo",))
+
+        self._overwrite("utenti.xlsx", righe)
+        print(f"[migrazione] Aggiunta la colonna stato in utenti.xlsx "
+              f"({len(righe)} utenti, tutti attivi)")
+
+    def utenti_in_attesa(self) -> List[User]:
+        """Chi si e' registrato da solo e aspetta ancora la password."""
+        return [u for u in self.get_all_users() if u.stato == "richiesta"]
+
     def seed(self):
         """Inizializza i file e inserisce dati di default se mancanti."""
         _ensure_dir()
@@ -745,6 +788,7 @@ class ExcelStore:
 
         # Migrazioni sui file già esistenti (prima di qualsiasi lettura)
         self._migra_colonna_password_chiara()
+        self._migra_colonna_stato()
 
         # Admin di default
         if not self.get_user_by_username("admin"):

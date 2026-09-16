@@ -287,10 +287,19 @@ tr.row-nuovo > td { color: var(--text-1) !important; }
   50%       { box-shadow: 0 0 0 4px rgba(88,166,255,.0); }
 }
 
+/* Richiesta di registrazione ancora da approvare */
+tr.riga-richiesta { background: rgba(227,179,65,.07) !important; }
+tr.riga-richiesta > td:first-child { border-left: 3px solid var(--yellow) !important; }
+
 .table-responsive {
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
+  /* Era "overflow: hidden": gli angoli restavano arrotondati ma le colonne
+     che sforavano venivano tagliate via senza possibilita' di raggiungerle
+     (nella pagina Utenti sparivano il campo della nuova password e il
+     pulsante di eliminazione). Con auto si possono scorrere di lato. */
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* ─── BADGES ───────────────────────────────────────── */
@@ -324,6 +333,7 @@ tr.row-nuovo > td { color: var(--text-1) !important; }
 .nbadge-chiuso      { background: rgba(63,185,80,.08);  color: var(--green);  border-color: rgba(63,185,80,.25);  }
 .nbadge-admin       { background: rgba(230,57,70,.1);   color: var(--accent); border-color: rgba(230,57,70,.3);   }
 .nbadge-user        { background: rgba(88,166,255,.08); color: var(--cyan);   border-color: rgba(88,166,255,.2);  }
+.nbadge-richiesta   { background: rgba(227,179,65,.14); color: var(--yellow); border-color: rgba(227,179,65,.45); }
 
 /* ─── ALERTS ───────────────────────────────────────── */
 .alert {
@@ -840,6 +850,7 @@ select:-webkit-autofill {
   .tabella-schede tr.row-critico     { border-left: 3px solid var(--red); }
   .tabella-schede tr.row-urgente     { border-left: 3px solid var(--yellow); }
   .tabella-schede tr.row-non-urgente { border-left: 3px solid var(--green); }
+  .tabella-schede tr.riga-richiesta  { border-left: 3px solid var(--yellow); }
   .tabella-schede tr > td:first-child { border-left: none !important; }
 
   .tabella-schede td {
