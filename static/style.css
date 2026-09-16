@@ -803,3 +803,99 @@ select:-webkit-autofill {
 @media (min-width: 1400px) {
   .container { max-width: 1760px; }
 }
+
+/* ─── TABELLE COME SCHEDE SU MOBILE ────────────────────
+   Sotto i 768px una tabella a otto colonne non ci sta: o si taglia
+   (e le azioni finiscono fuori schermo) o si stringe fino a essere
+   illeggibile. Qui ogni riga diventa una scheda impilata, con
+   l'etichetta della colonna accanto al valore.
+
+   Il vantaggio e' che su telefono si vede DI PIU', non di meno:
+   descrizione, autore e data non vengono piu' nascosti.          */
+
+@media (max-width: 767.98px) {
+
+  .tabella-schede,
+  .tabella-schede tbody,
+  .tabella-schede tr,
+  .tabella-schede td {
+    display: block;
+    width: 100%;
+  }
+
+  /* L'intestazione non serve: l'etichetta sta dentro ogni cella */
+  .tabella-schede thead { display: none; }
+
+  .tabella-schede tr {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: .7rem;
+    padding: .2rem .1rem;
+    overflow: hidden;
+  }
+
+  /* La striscia colorata dell'urgenza passa dal bordo sinistro
+     della prima cella a quello di tutta la scheda */
+  .tabella-schede tr.row-critico     { border-left: 3px solid var(--red); }
+  .tabella-schede tr.row-urgente     { border-left: 3px solid var(--yellow); }
+  .tabella-schede tr.row-non-urgente { border-left: 3px solid var(--green); }
+  .tabella-schede tr > td:first-child { border-left: none !important; }
+
+  .tabella-schede td {
+    /* !important per avere la meglio sulle classi d-none di Bootstrap:
+       le colonne nascoste in tabella qui vanno invece mostrate */
+    display: flex !important;
+    align-items: baseline;
+    gap: .6rem;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    padding: .45rem .8rem;
+    text-align: left !important;
+    white-space: normal !important;
+    max-width: none !important;
+  }
+  .tabella-schede td:last-child { border-bottom: none; }
+
+  /* Etichetta della colonna, presa da data-etichetta */
+  .tabella-schede td::before {
+    content: attr(data-etichetta);
+    flex: 0 0 5.5rem;
+    color: var(--text-3);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  /* Celle senza etichetta: il valore occupa tutta la riga */
+  .tabella-schede td:not([data-etichetta])::before { display: none; }
+
+  /* Il nome del cinema fa da titolo della scheda */
+  .tabella-schede td.scheda-titolo {
+    display: block !important;
+    padding: .7rem .8rem .5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+  .tabella-schede td.scheda-titolo::before { display: none; }
+
+  /* I pulsanti azione stanno larghi in fondo alla scheda */
+  .tabella-schede td.scheda-azioni {
+    display: flex !important;
+    justify-content: flex-end;
+    gap: .4rem;
+    padding: .6rem .8rem;
+    background: rgba(255,255,255,.02);
+  }
+  .tabella-schede td.scheda-azioni::before { display: none; }
+  .tabella-schede td.scheda-azioni .btn { padding: .3rem .9rem; }
+
+  /* Niente scorrimento orizzontale: la scheda sta gia' nella pagina.
+     La classe sta sul contenitore invece di usare :has(), che i browser
+     piu' vecchi non riconoscono. */
+  .contenitore-schede {
+    overflow-x: visible;
+    border: none;
+  }
+}
