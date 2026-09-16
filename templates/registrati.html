@@ -38,10 +38,16 @@
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
 
       <div class="mb-3">
-        <label class="form-label">Nome</label>
-        <input type="text" name="nome" class="form-control" required autofocus
+        <label class="form-label">Nome e cognome</label>
+        <input type="text" name="nome" id="campoNome" class="form-control" required autofocus
           maxlength="60" autocomplete="name"
-          placeholder="Nome e cognome" value="{{ dati.nome or '' }}">
+          placeholder="Mario Rossi" value="{{ dati.nome or '' }}">
+        <div id="anteprimaUtente"
+          style="font-size:.72rem; color:var(--text-3); margin-top:.35rem; display:none;">
+          Entrerai con il nome utente
+          <span id="nomeUtente" style="color:var(--text-2); font-family:monospace;"></span>
+          — te lo confermiamo nella mail con la password.
+        </div>
       </div>
 
       <div class="mb-3">
@@ -95,6 +101,43 @@
       </a>
     </div>
   </div>
+
+  <script>
+    // Anteprima del nome utente: le stesse regole di _nome_utente_da() in
+    // app.py. Se il nome e' gia' preso il portale aggiunge un numero, quindi
+    // qui si dice "entrerai con" senza prometterlo: quello buono arriva
+    // comunque nella mail con la password.
+    (function () {
+      var campo = document.getElementById("campoNome");
+      var riquadro = document.getElementById("anteprimaUtente");
+      var uscita = document.getElementById("nomeUtente");
+
+      function nomeUtente(testo) {
+        return testo
+          .normalize("NFKD").replace(/[̀-ͯ]/g, "")  // via gli accenti
+          .toLowerCase()
+          .trim()
+          .replace(/[\s_]+/g, ".")
+          .replace(/[^a-z0-9.\-]/g, "")
+          .replace(/\.{2,}/g, ".")
+          .replace(/^[.\-]+|[.\-]+$/g, "")
+          .slice(0, 40);
+      }
+
+      function aggiorna() {
+        var risultato = nomeUtente(campo.value);
+        if (risultato) {
+          uscita.textContent = risultato;
+          riquadro.style.display = "";
+        } else {
+          riquadro.style.display = "none";
+        }
+      }
+
+      campo.addEventListener("input", aggiorna);
+      aggiorna();
+    })();
+  </script>
 
 </body>
 </html>

@@ -56,6 +56,7 @@
       <div>
         <h2 class="page-heading mb-0">{{ u.username }}</h2>
         <div style="color:var(--text-3); font-size:.82rem; margin-top:.2rem;">
+          {% if u.nome %}{{ u.nome }} — {% endif %}
           {% if u.role == 'admin' %}Amministratore{% else %}Utente{% endif %}
           — #{{ u.id }}
         </div>
@@ -88,6 +89,18 @@
               <label class="form-label">Username</label>
               <input type="text" name="username" class="form-control"
                      value="{{ u.username }}" required autocomplete="off">
+              <div style="font-size:.75rem; color:var(--text-3); margin-top:.3rem;">
+                È quello che digita per entrare.
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Nome e cognome</label>
+              <input type="text" name="nome" class="form-control"
+                     value="{{ u.nome }}" autocomplete="off"
+                     placeholder="Mario Rossi">
+              <div style="font-size:.75rem; color:var(--text-3); margin-top:.3rem;">
+                Solo per riconoscerlo nell'elenco.
+              </div>
             </div>
             <div class="col-12 col-md-4">
               <label class="form-label">Telefono</label>
