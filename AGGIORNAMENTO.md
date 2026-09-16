@@ -1,118 +1,131 @@
-# Guida all'aggiornamento
+# Come aggiornare il sito senza perdere niente
 
-Questo aggiornamento tocca **sicurezza, dati e prestazioni**. Segui i passaggi
-nell'ordine indicato: il primo è importante e non va saltato.
+## In due righe
 
----
-
-## ⚠️ 1. Prima di tutto: metti al sicuro il database
-
-I file Excel in `data/` non sono più versionati (prima lo erano, ed era un
-rischio: un deploy poteva riportare il database indietro di mesi).
-
-Proprio per questo, **prima di scaricare l'aggiornamento fai una copia della
-cartella `data/`**:
-
-```bat
-xcopy data data_backup_PRIMA_AGGIORNAMENTO\ /E /I
-```
-
-Se durante il `git pull` compare un errore del tipo
-*"Your local changes would be overwritten"* riferito a `data/`, è previsto:
-significa che git sta cercando di togliere dal versionamento file che tu hai
-modificato. Risolvi così, senza perdere niente:
-
-```bat
-git rm -r --cached data
-git pull
-```
-
-I file restano sul disco: cambia solo che git smette di tracciarli.
+Scompatta lo ZIP sopra la cartella del sito e **sovrascrivi tutto quello che
+ti chiede**. Non c'è niente dentro lo ZIP che possa cancellare i tuoi dati:
+le cartelle `data/` e `allegati/` e il file `.secret_key` non ci sono proprio.
 
 ---
 
-## 2. Scarica l'aggiornamento
+## 1. Ferma il sito
+
+Chiudi la finestra nera di `start_noc.bat` (o l'icona nella barra in basso
+a destra, se lo avvii con `start_noc.vbs`).
+
+Se resta aperto, Windows tiene i file Excel occupati e il salvataggio può
+dare *"Accesso negato"*.
+
+## 2. Fai una copia dei dati
+
+Un minuto, e dormi tranquillo:
 
 ```bat
-git pull
+xcopy data data_backup\ /E /I /Y
+xcopy allegati allegati_backup\ /E /I /Y
 ```
 
-## 3. Installa la libreria per i PDF
+## 3. Scompatta lo ZIP sopra la cartella del sito
 
-Serve per il pulsante 📦 delle etichette di spedizione:
+Quando Windows chiede se sostituire i file, rispondi **sì a tutto**.
 
-```bat
-C:\Users\Sigrafilm\AppData\Local\Python\pythoncore-3.14-64\python.exe -m pip install reportlab
-```
+## 4. Riavvia con `start_noc.bat`
 
-## 4. Riavvia il sito
-
-Chiudi e riavvia con `start_noc.bat`. Al primo avvio vedrai:
+Al primo avvio dopo l'aggiornamento vedrai una riga come questa:
 
 ```
-[chiave] Generata una nuova SECRET_KEY in .secret_key
-[migrazione] Rimosse N password in chiaro da utenti.xlsx
+[migrazione] utenti.xlsx: aggiunte le colonne stato, nome (5 utenti)
 ```
 
-Sono entrambi messaggi normali e appaiono una sola volta.
-
-> **Nota:** tutti gli utenti dovranno rifare il login, perché la chiave che
-> firma le sessioni è cambiata. Le password restano quelle di prima.
+È normale e compare una volta sola: il file degli utenti prende due colonne
+nuove. Tutti gli utenti che hai già risultano attivi e continuano a entrare
+con la password di sempre.
 
 ---
 
-## Cosa è cambiato
+## Cosa NON viene toccato
 
-### Sicurezza
+Queste cose stanno solo sul tuo PC e nello ZIP non ci sono:
 
-| Prima | Adesso |
+| Cosa | Dove |
 |---|---|
-| L'indirizzo `/reset-admin-password-7x9k` era raggiungibile **da chiunque su internet senza password** e dava il controllo del sito | Route rimossa. Per il reset d'emergenza: `python reset_admin.py` dal PC del server |
-| Le password erano salvate **in chiaro** e mostrate nella pagina Utenti | Colonna eliminata e contenuto cancellato dal disco. Restano solo gli hash |
-| Chiave di sessione con valore predefinito noto | Chiave casuale salvata in `.secret_key`, fuori da git |
-| I form erano vulnerabili a CSRF | Tutti i 21 form protetti da gettone |
+| Ticket, cinema, utenti, messaggi | `data\*.xlsx` |
+| Backup automatici | `data\backup\` |
+| Impostazioni email (password compresa) | `data\impostazioni.json` |
+| Foto e video allegati ai ticket | `allegati\` |
+| Chiave delle sessioni | `.secret_key` |
 
-**Se ti serve reimpostare la password di un amministratore**, dal PC del server:
+Se per sbaglio cancelli `.secret_key` non perdi dati: il sito ne genera una
+nuova e tutti devono solo rifare il login.
+
+---
+
+## Cosa c'è di nuovo
+
+### Registrazione dei clienti
+
+Nella pagina di login c'è il pulsante **Registrati**. Il responsabile di un
+cinema compila nome e cognome, sceglie il cinema che gestisce e lascia
+telefono ed email.
+
+Non entra subito: la sua richiesta arriva a te.
+
+- ti arriva una **email** a `assistenza@sigrafilm.it`
+- nella pagina **Utenti** compare in cima, con la scritta gialla
+  *"Nuova richiesta"*
+- premi **✉ Approva**: il sito genera la password, gliela manda per email e
+  da quel momento può entrare
+- premi **✕** per rifiutare
+
+Il nome utente lo ricava dal nome: *Mario Rossi* diventa `mario.rossi`.
+Niente spazi né accenti, così è più difficile sbagliarlo da telefono.
+Il nome per esteso resta scritto sotto, nella pagina Utenti.
+
+### Dalla pagina di login è sparito WhatsApp
+
+Al suo posto ci sono il pulsante Registrati e il link per scrivere alla
+casella dell'assistenza.
+
+### Su telefono le tabelle diventano schede
+
+Ticket, archivio, utenti e cinema: sul telefono ogni riga diventa un
+riquadro con le voci una sotto l'altra, invece di una tabella con le
+colonne tagliate.
+
+### Due cose che non funzionavano
+
+- Nella pagina Utenti, su computer, il campo *"Nuova password"* e il
+  pulsante di eliminazione finivano oltre il bordo e non si potevano
+  cliccare. Ora la tabella si scorre di lato.
+- Il dettaglio utente non mostrava più il ruolo (era un errore nel codice
+  della pagina).
+
+---
+
+## Se qualcosa va storto
+
+**Il sito non parte.** Apri `start_noc.bat` e leggi la finestra nera: l'ultima
+riga dice cosa manca. Quasi sempre è una libreria:
+
+```bat
+python -m pip install -r requirements.txt
+```
+
+**Ho perso la password di admin.** Dal PC del sito:
 
 ```bat
 python reset_admin.py
 ```
 
-Chiede la nuova password a schermo, senza lasciarla nella cronologia dei comandi.
+Chiede la nuova password a schermo, senza lasciarla scritta da nessuna parte.
 
-### Protezione dei dati
+**Voglio tornare indietro.** Rimetti a posto i dati dalla copia del passo 2:
 
-- **Salvataggio atomico**: prima un'interruzione a metà scrittura (PC spento,
-  processo terminato) lasciava il file troncato e i dati persi. Ora si scrive su
-  file temporaneo e si rinomina solo a fine scrittura.
-- **Backup automatici** in `data/backup/`: fino a 10 copie per file, al massimo
-  una all'ora. Per ripristinare, copia il file scelto sopra quello in `data/`
-  (a sito spento).
+```bat
+xcopy data_backup data\ /E /I /Y
+```
 
-### Prestazioni
-
-La dashboard rileggeva l'intero archivio messaggi **una volta per ogni ticket**.
-Con 500 ticket e 3000 messaggi erano ~17 secondi di attesa: ora sono 0,3.
-
-### Funzionalità
-
-- **Visibilità per cinema**: chi lavora nello stesso cinema vede gli stessi
-  ticket. Prima ognuno vedeva solo quelli aperti da sé, anche a parità di cinema
-  assegnato.
-- **Ricerca** in dashboard e archivio: cinema, città, sala, descrizione, autore,
-  numero ticket (`#12`).
-- **Archivio paginato** a 50 ticket per pagina.
-- **Notifica al cliente** quando l'assistenza risponde (serve l'email
-  nell'anagrafica utente).
-
----
-
-## Notifiche email
-
-Si configurano dal sito: entra come amministratore e apri **🔔 Notifiche**
-nel menu in alto.
-
-I campi arrivano gia' compilati con i dati MC-link: basta inserire la
-password della casella e premere **Salva e invia una prova**.
-
-Le modifiche hanno effetto subito, senza riavviare il sito.
+**Le notifiche email non partono.** Entra come amministratore e apri
+**🔔 Notifiche** nel menu in alto: i campi sono già compilati con i dati
+MC-link, serve solo la password della casella. Il pulsante
+*Salva e invia una prova* dice esattamente cosa non va.
