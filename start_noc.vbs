@@ -1,4 +1,5 @@
-' Avvia il sito in background, senza nemmeno la finestra del prompt.
+' Avvia il sito senza nemmeno la finestra del prompt, lasciando l'icona
+' vicino all'orologio: da li' si apre il sito e si ferma.
 ' Ricava la cartella da questo file invece di usare un percorso fisso.
 Set fso = CreateObject("Scripting.FileSystemObject")
 cartella = fso.GetParentFolderName(WScript.ScriptFullName)
@@ -8,4 +9,4 @@ If Not fso.FileExists(pyw) Then pyw = "pythonw"
 
 Set shell = CreateObject("WScript.Shell")
 shell.CurrentDirectory = cartella
-shell.Run """" & pyw & """ main.py", 0, False
+shell.Run """" & pyw & """ tray.py", 0, False
